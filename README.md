@@ -62,3 +62,5 @@ Look in the `users.json` file for the usernames. Every password is _Admin8*_.
 ## Changing Your Database
 
 You can run the `./seed-data.sh` script any time to make changes to database models, or just want to roll back your data to its original state. It deletes the database, any existing migrations, and then re-creates the database based on your current models, and inserts starter data.
+
+
