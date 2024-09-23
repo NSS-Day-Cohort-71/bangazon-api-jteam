@@ -2,6 +2,7 @@ from django.db import models
 from .customer import Customer
 from safedelete.models import SafeDeleteModel
 from safedelete.models import SOFT_DELETE
+from safedelete.models import SafeDeleteModel
 
 class Payment(SafeDeleteModel):
 

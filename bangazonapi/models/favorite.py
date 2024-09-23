@@ -3,8 +3,8 @@ from django.db import models
 from .customer import Customer
 from .productcategory import ProductCategory
 from .orderproduct import OrderProduct
-from safedelete.models import SafeDeleteModel
-from safedelete.models import SOFT_DELETE
+# from safedelete.models import SafeDeleteModel
+# from safedelete.models import SOFT_DELETE
 
 class Favorite(models.Model):
 
