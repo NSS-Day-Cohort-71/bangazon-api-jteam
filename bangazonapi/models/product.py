@@ -27,8 +27,7 @@ class Product(SafeDeleteModel):
         width_field=None, max_length=None, null=True)
     rating = models.ManyToManyField(
         "Rating",
-        through="ProductRating",
-        related_name="products"
+        through="ProductRating"
     )
 
     @property
