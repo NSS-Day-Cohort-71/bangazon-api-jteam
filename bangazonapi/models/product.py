@@ -72,6 +72,14 @@ class Product(SafeDeleteModel):
             return avg
         except ZeroDivisionError:
             return 0
+    
+    @property
+    def rating_count(self):
+        """rating_count property
+        Returns:
+            int -- The number of ratings for the product
+        """
+        return self.rating.count()
 
     class Meta:
         verbose_name = ("product")
