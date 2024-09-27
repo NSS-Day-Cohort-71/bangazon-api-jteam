@@ -279,15 +279,12 @@ class Products(ViewSet):
         if quantity is not None:
             products = products.order_by("-created_date")[:int(quantity)]
 
-        # if number_sold is not None:
-        #     def sold_filter(product):
-        #         if product.number_sold >= int(number_sold):
-        #             return True
-        #         return False
         if number_sold is not None:
-            products = products.filter(number_sold__gte=int(number_sold))
-
-            # products = filter(sold_filter, products)
+            def sold_filter(product):
+                if product.number_sold >= int(number_sold):
+                    return True
+                return False
+            products = filter(sold_filter, products)
 
         serializer = ProductSerializer(
             products, many=True, context={'request': request})
