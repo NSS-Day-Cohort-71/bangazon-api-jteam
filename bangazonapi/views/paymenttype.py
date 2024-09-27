@@ -9,10 +9,12 @@ from bangazonapi.models import Payment, Customer
 
 class PaymentSerializer(serializers.HyperlinkedModelSerializer):
     """JSON serializer for Payment
-
+    
     Arguments:
         serializers
     """
+    customer = serializers.PrimaryKeyRelatedField(queryset=Customer.objects.all())
+    
     class Meta:
         model = Payment
         url = serializers.HyperlinkedIdentityField(
@@ -20,7 +22,7 @@ class PaymentSerializer(serializers.HyperlinkedModelSerializer):
             lookup_field='id'
         )
         fields = ('id', 'url', 'merchant_name', 'account_number',
-                  'expiration_date', 'create_date')
+                  'expiration_date', 'create_date', 'customer')
 
 
 class Payments(ViewSet):
@@ -80,12 +82,16 @@ class Payments(ViewSet):
     def list(self, request):
         """Handle GET requests to payment type resource"""
         payment_types = Payment.objects.all()
-
         customer_id = self.request.query_params.get('customer', None)
 
         if customer_id is not None:
-            payment_types = payment_types.filter(customer__id=customer_id)
+            try:
+                customer = Customer.objects.get(pk=customer_id)
+                payment_types = payment_types.filter(customer=customer)
+            except Customer.DoesNotExist:
+                return Response({'message': 'Customer not found'}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = PaymentSerializer(
             payment_types, many=True, context={'request': request})
         return Response(serializer.data)
+
