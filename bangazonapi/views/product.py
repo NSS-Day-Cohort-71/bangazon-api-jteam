@@ -11,6 +11,7 @@ from rest_framework import status
 from bangazonapi.models import Product, Customer, ProductCategory
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.parsers import MultiPartParser, FormParser
+from django.db.models import Q
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -246,6 +247,9 @@ class Products(ViewSet):
 
         # Support filtering by category and/or quantity
         category = self.request.query_params.get('category', None)
+        min_price = self.request.query_params.get('min_price', None)
+        name = self.request.query_params.get('name', None)
+        location = self.request.query_params.get('location', None)
         quantity = self.request.query_params.get('quantity', None)
         order = self.request.query_params.get('order_by', None)
         direction = self.request.query_params.get('direction', None)
@@ -262,6 +266,15 @@ class Products(ViewSet):
 
         if category is not None:
             products = products.filter(category__id=category)
+        
+        if min_price is not None:
+            products = products.filter(price__gte=float(min_price))
+
+        if name is not None:
+            products = products.filter(name__contains=name)
+        
+        if location is not None:
+            products = products.filter(location__contains=location)
 
         if quantity is not None:
             products = products.order_by("-created_date")[:int(quantity)]
@@ -271,7 +284,6 @@ class Products(ViewSet):
                 if product.number_sold >= int(number_sold):
                     return True
                 return False
-
             products = filter(sold_filter, products)
 
         serializer = ProductSerializer(
