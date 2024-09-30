@@ -1,5 +1,5 @@
 from rest_framework import serializers, viewsets
-from bangazonapi.models import Store
+from bangazonapi.models import Store, Customer
 
 
 class StoreSerializer(serializers.ModelSerializer):
@@ -9,11 +9,11 @@ class StoreSerializer(serializers.ModelSerializer):
         model = Store
         fields = (
             "id",
-            "customer",  # Still return customer in the response
+            "customer",
             "name",
             "description",
         )
-        read_only_fields = ["customer"]  # Ensure customer is read-only
+        read_only_fields = ["customer"]
 
 
 class StoreViewSet(viewsets.ModelViewSet):
@@ -22,8 +22,6 @@ class StoreViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
     def perform_create(self, serializer):
-        # Automatically set the customer to the logged-in user (assuming related)
-        customer = (
-            self.request.user.customer
-        )  # Adjust if needed based on your user model
-        serializer.save(customer=customer)  # Save with the correct customer
+        # Fetch the logged-in user's related customer instance
+        customer = Customer.objects.get(user=self.request.user)
+        serializer.save(customer=customer)
