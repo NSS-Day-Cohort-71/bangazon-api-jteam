@@ -122,11 +122,22 @@ class Orders(ViewSet):
             HTTP/1.1 204 No Content
         """
         customer = Customer.objects.get(user=request.auth.user)
+        
+        # Retrieve the order instance
         order = Order.objects.get(pk=pk, customer=customer)
-        order.payment_type = request.data["payment_type"]
+        
+        # Retrieve the Payment instance using the provided payment_type ID
+        try:
+            payment = Payment.objects.get(pk=request.data["payment_type"])
+        except Payment.DoesNotExist:
+            return Response({'message': 'Invalid payment type.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Assign the Payment instance to the order's payment_type field
+        order.payment_type = payment
         order.save()
 
         return Response({}, status=status.HTTP_204_NO_CONTENT)
+
 
     def list(self, request):
         """
