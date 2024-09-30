@@ -41,6 +41,7 @@ class Payments(ViewSet):
         Returns:
             Response -- JSON serialized payment instance
         """
+        customer_id = self.request.query_params.get('customer', None)
         new_payment = Payment()
         new_payment.merchant_name = request.data["merchant_name"]
         new_payment.account_number = request.data["account_number"]
