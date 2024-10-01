@@ -7,11 +7,15 @@ from bangazonapi.models import Order, Customer, Product, OrderProduct
 from .product import ProductSerializer
 from .order import OrderSerializer
 
+# Need to create an OrderProductSerializer(serializer.ModelSerializer):
+    # class Meta:
+        # model = OrderProduct
+        # fields = // specify fields to include in response
 
 class Cart(ViewSet):
     """Shopping cart for Bangazon eCommerce"""
 
-    def create(self, request):
+    def create(self, request, pk=None):
         """
         @api {POST} /cart POST new line items to cart
         @apiName AddLineItem
@@ -32,10 +36,14 @@ class Cart(ViewSet):
             open_order.customer = current_user
             open_order.save()
 
+        product_id = request.data.get('product_id')
+        
         line_item = OrderProduct()
-        line_item.product = Product.objects.get(pk=request.data["product_id"])
+        line_item.product = Product.objects.get(pk=product_id)
         line_item.order = open_order
         line_item.save()
+
+        # use serializer for proper response.data format
 
         return Response({}, status=status.HTTP_204_NO_CONTENT)
 
