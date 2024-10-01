@@ -1,4 +1,5 @@
 """View module for handling requests about customer profiles"""
+
 import datetime
 from django.http import HttpResponseServerError
 from django.contrib.auth.models import User
@@ -12,10 +13,12 @@ from bangazonapi.models import OrderProduct, Favorite
 from bangazonapi.models import Recommendation
 from .product import ProductSerializer
 from .order import OrderSerializer
+from .store import StoreSerializer
 
 
 class Profile(ViewSet):
     """Request handlers for user profile info in the Bangazon Platform"""
+
     permission_classes = (IsAuthenticatedOrReadOnly,)
 
     def list(self, request):
@@ -82,16 +85,19 @@ class Profile(ViewSet):
         """
         try:
             current_user = Customer.objects.get(user=request.auth.user)
-            current_user.recommends = Recommendation.objects.filter(recommender=current_user)
+            current_user.recommends = Recommendation.objects.filter(
+                recommender=current_user
+            )
 
             serializer = ProfileSerializer(
-                current_user, many=False, context={'request': request})
+                current_user, many=False, context={"request": request}
+            )
 
             return Response(serializer.data)
         except Exception as ex:
             return HttpResponseServerError(ex)
 
-    @action(methods=['get', 'post', 'delete'], detail=False)
+    @action(methods=["get", "post", "delete"], detail=False)
     def cart(self, request):
         """Shopping cart manipulation"""
 
@@ -112,13 +118,14 @@ class Profile(ViewSet):
             @apiError (404) {String} message  Not found message.
             """
             try:
-                open_order = Order.objects.get(
-                    customer=current_user, payment_type=None)
+                open_order = Order.objects.get(customer=current_user, payment_type=None)
                 line_items = OrderProduct.objects.filter(order=open_order)
                 line_items.delete()
                 open_order.delete()
             except Order.DoesNotExist as ex:
-                return Response({'message': ex.args[0]}, status=status.HTTP_404_NOT_FOUND)
+                return Response(
+                    {"message": ex.args[0]}, status=status.HTTP_404_NOT_FOUND
+                )
 
             return Response({}, status=status.HTTP_204_NO_CONTENT)
 
@@ -175,19 +182,22 @@ class Profile(ViewSet):
             @apiError (404) {String} message  Not found message
             """
             try:
-                open_order = Order.objects.get(
-                    customer=current_user, payment_type=None)
+                open_order = Order.objects.get(customer=current_user, payment_type=None)
                 line_items = OrderProduct.objects.filter(order=open_order)
                 line_items = LineItemSerializer(
-                    line_items, many=True, context={'request': request})
+                    line_items, many=True, context={"request": request}
+                )
 
                 cart = {}
-                cart["order"] = OrderSerializer(open_order, many=False, context={
-                                                'request': request}).data
+                cart["order"] = OrderSerializer(
+                    open_order, many=False, context={"request": request}
+                ).data
                 cart["order"]["size"] = len(line_items.data)
 
             except Order.DoesNotExist as ex:
-                return Response({'message': ex.args[0]}, status=status.HTTP_404_NOT_FOUND)
+                return Response(
+                    {"message": ex.args[0]}, status=status.HTTP_404_NOT_FOUND
+                )
 
             return Response(cart["order"])
 
@@ -242,19 +252,19 @@ class Profile(ViewSet):
                 open_order.save()
 
             line_item = OrderProduct()
-            line_item.product = Product.objects.get(
-                pk=request.data["product_id"])
+            line_item.product = Product.objects.get(pk=request.data["product_id"])
             line_item.order = open_order
             line_item.save()
 
             line_item_json = LineItemSerializer(
-                line_item, many=False, context={'request': request})
+                line_item, many=False, context={"request": request}
+            )
 
             return Response(line_item_json.data)
 
         return Response({}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-    @action(methods=['get'], detail=False)
+    @action(methods=["get"], detail=False)
     def favoritesellers(self, request):
         """
         @api {GET} /profile/favoritesellers GET favorite sellers
@@ -306,7 +316,8 @@ class Profile(ViewSet):
         favorites = Favorite.objects.filter(customer=customer)
 
         serializer = FavoriteSerializer(
-            favorites, many=True, context={'request': request})
+            favorites, many=True, context={"request": request}
+        )
         return Response(serializer.data)
 
 
@@ -316,11 +327,12 @@ class LineItemSerializer(serializers.HyperlinkedModelSerializer):
     Arguments:
         serializers
     """
+
     product = ProductSerializer(many=False)
 
     class Meta:
         model = OrderProduct
-        fields = ('id', 'product')
+        fields = ("id", "product")
         depth = 1
 
 
@@ -330,52 +342,49 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
     Arguments:
         serializers
     """
+
     class Meta:
         model = User
-        fields = ('first_name', 'last_name', 'email')
+        fields = ("first_name", "last_name", "email")
         depth = 1
 
 
 class CustomerSerializer(serializers.ModelSerializer):
     """JSON serializer for recommendation customers"""
+
     user = UserSerializer()
 
     class Meta:
         model = Customer
-        fields = ('id', 'user',)
+        fields = (
+            "id",
+            "user",
+        )
 
 
 class ProfileProductSerializer(serializers.ModelSerializer):
     """JSON serializer for products"""
+
     class Meta:
         model = Product
-        fields = ('id', 'name',)
+        fields = (
+            "id",
+            "name",
+        )
 
 
 class RecommenderSerializer(serializers.ModelSerializer):
     """JSON serializer for recommendations"""
+
     customer = CustomerSerializer()
     product = ProfileProductSerializer()
 
     class Meta:
         model = Recommendation
-        fields = ('product', 'customer',)
-
-
-class ProfileSerializer(serializers.ModelSerializer):
-    """JSON serializer for customer profile
-
-    Arguments:
-        serializers
-    """
-    user = UserSerializer(many=False)
-    recommends = RecommenderSerializer(many=True)
-
-    class Meta:
-        model = Customer
-        fields = ('id', 'url', 'user', 'phone_number',
-                  'address', 'payment_types', 'recommends',)
-        depth = 1
+        fields = (
+            "product",
+            "customer",
+        )
 
 
 class FavoriteUserSerializer(serializers.HyperlinkedModelSerializer):
@@ -387,7 +396,7 @@ class FavoriteUserSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = User
-        fields = ('first_name', 'last_name', 'username')
+        fields = ("first_name", "last_name", "username")
         depth = 1
 
 
@@ -402,20 +411,45 @@ class FavoriteSellerSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = Customer
-        fields = ('id', 'url', 'user',)
+        fields = (
+            "id",
+            "url",
+            "user",
+        )
         depth = 1
 
 
-class FavoriteSerializer(serializers.HyperlinkedModelSerializer):
-    """JSON serializer for favorites
+class FavoriteSerializer(serializers.ModelSerializer):
+    """JSON serializer for favorites"""
+
+    store = StoreSerializer()
+
+    class Meta:
+        model = Favorite
+        fields = ("id", "store")
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    """JSON serializer for customer profile
 
     Arguments:
         serializers
     """
 
-    seller = FavoriteSellerSerializer(many=False)
+    user = UserSerializer(many=False)
+    recommends = RecommenderSerializer(many=True)
+    favorites = FavoriteSerializer(many=True, source="favorite_set")
 
     class Meta:
-        model = Favorite
-        fields = ('id', 'seller')
-        depth = 2
+        model = Customer
+        fields = (
+            "id",
+            "url",
+            "user",
+            "phone_number",
+            "address",
+            "payment_types",
+            "recommends",
+            "favorites",
+        )
+        depth = 1
