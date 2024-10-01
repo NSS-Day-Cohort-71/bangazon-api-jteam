@@ -1,5 +1,6 @@
 """View module for handling requests about customer shopping cart"""
 from django.db.models import Sum, F
+from django.db.models.functions import Round
 import datetime
 from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
@@ -23,22 +24,6 @@ class CartLineItemSerializer(serializers.HyperlinkedModelSerializer):
             lookup_field='id'
         )
         fields = ('id', 'url', 'order', 'product')
-
-# class CartSerializer(serializers.HyperlinkedModelSerializer):
-#     """JSON serializer for custom cart"""
-
-#     line_items = CartLineItemSerializer(many=True)
-#     total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
-
-#     class Meta:
-#         model = Order
-#         url = serializers.HyperlinkedIdentityField(view_name="cart", lookup_field="id")
-#         fields = (
-#             'id',
-#             'customer', 
-#             'line_items', 
-#             'total',
-#         )
 
 class Cart(ViewSet):
     """Shopping cart for Bangazon eCommerce"""
@@ -71,7 +56,6 @@ class Cart(ViewSet):
         line_item.order = open_order
         line_item.save()
 
-        # use serializer for proper response.data format
         serializer = CartLineItemSerializer(line_item, context={'request': request})
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -158,7 +142,7 @@ class Cart(ViewSet):
             product_list = ProductSerializer(
                 products_on_order, many=True, context={'request': request})
             
-            total_price = products_on_order.aggregate(total=Sum(F('price')))
+            total_price = products_on_order.aggregate(total=Round(Sum(F('price')), 2))
 
             final = {
                 "order": serialized_order.data
