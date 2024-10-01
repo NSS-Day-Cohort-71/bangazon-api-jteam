@@ -1,4 +1,5 @@
 """View module for handling requests about customer shopping cart"""
+from django.db.models import Sum, F
 import datetime
 from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
@@ -7,9 +8,14 @@ from rest_framework import serializers
 from bangazonapi.models import Order, Customer, Product, OrderProduct
 from .product import ProductSerializer
 from .order import OrderSerializer
+from .product import ProductSerializer
+from .order import OrderSerializer
 
-class LineItemSerializer(serializers.HyperlinkedModelSerializer):
+class CartLineItemSerializer(serializers.HyperlinkedModelSerializer):
     """JSON serializer for line items """
+
+    product = ProductSerializer(many=False)
+
     class Meta:
         model = OrderProduct
         url = serializers.HyperlinkedIdentityField(
@@ -17,6 +23,22 @@ class LineItemSerializer(serializers.HyperlinkedModelSerializer):
             lookup_field='id'
         )
         fields = ('id', 'url', 'order', 'product')
+
+# class CartSerializer(serializers.HyperlinkedModelSerializer):
+#     """JSON serializer for custom cart"""
+
+#     line_items = CartLineItemSerializer(many=True)
+#     total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+
+#     class Meta:
+#         model = Order
+#         url = serializers.HyperlinkedIdentityField(view_name="cart", lookup_field="id")
+#         fields = (
+#             'id',
+#             'customer', 
+#             'line_items', 
+#             'total',
+#         )
 
 class Cart(ViewSet):
     """Shopping cart for Bangazon eCommerce"""
@@ -50,7 +72,7 @@ class Cart(ViewSet):
         line_item.save()
 
         # use serializer for proper response.data format
-        serializer = LineItemSerializer(line_item, context={'request': request})
+        serializer = CartLineItemSerializer(line_item, context={'request': request})
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -135,14 +157,21 @@ class Cart(ViewSet):
 
             product_list = ProductSerializer(
                 products_on_order, many=True, context={'request': request})
+            
+            total_price = products_on_order.aggregate(total=Sum(F('price')))
 
             final = {
                 "order": serialized_order.data
             }
             final["order"]["products"] = product_list.data
             final["order"]["size"] = len(products_on_order)
+            final["order"]["total"] = total_price['total']
+
 
         except Order.DoesNotExist as ex:
             return Response({'message': ex.args[0]}, status=status.HTTP_404_NOT_FOUND)
 
         return Response(final["order"])
+    
+    def retrieve(self, request, pk=None):
+        pass
