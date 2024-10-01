@@ -3,14 +3,20 @@ import datetime
 from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework import serializers
 from bangazonapi.models import Order, Customer, Product, OrderProduct
 from .product import ProductSerializer
 from .order import OrderSerializer
 
-# Need to create an OrderProductSerializer(serializer.ModelSerializer):
-    # class Meta:
-        # model = OrderProduct
-        # fields = // specify fields to include in response
+class LineItemSerializer(serializers.HyperlinkedModelSerializer):
+    """JSON serializer for line items """
+    class Meta:
+        model = OrderProduct
+        url = serializers.HyperlinkedIdentityField(
+            view_name='lineitem',
+            lookup_field='id'
+        )
+        fields = ('id', 'url', 'order', 'product')
 
 class Cart(ViewSet):
     """Shopping cart for Bangazon eCommerce"""
@@ -44,8 +50,9 @@ class Cart(ViewSet):
         line_item.save()
 
         # use serializer for proper response.data format
+        serializer = LineItemSerializer(line_item, context={'request': request})
 
-        return Response({}, status=status.HTTP_204_NO_CONTENT)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
     def destroy(self, request, pk=None):
