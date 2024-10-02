@@ -308,7 +308,7 @@ class Products(ViewSet):
 
             return Response(None, status=status.HTTP_204_NO_CONTENT)
 
-        return Response(None, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        return Response(None, status=status.HTTP_405_METHOD_NOT_ALLOWED)    
 
     @action(methods=['post'], detail=True, url_path='rate-product')
     def rate_product(self, request, pk=None):
@@ -339,3 +339,18 @@ class Products(ViewSet):
                 {'message': f'Key {str(ex)} is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+    @action(methods=['get'], detail=False, url_path='deleted')
+    def deleted_products(self, request):
+        """
+        @api {GET} /products/deleted GET soft-deleted products
+        @apiName GetDeletedProducts
+        @apiGroup Product
+        
+        @apiSuccess (200) {Array} products List of soft-deleted products.
+        """
+
+        # Get only soft-deleted products
+        deleted_products = Product.objects.deleted_only()
+
+        serializer = ProductSerializer(deleted_products, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)

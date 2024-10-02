@@ -103,6 +103,31 @@ class ProductTests(APITestCase):
         self.assertEqual(len(json_response), 3)
 
     # TODO: Delete product
+    def test_delete_product(self):
+        """
+        Ensure we can soft delete a product, but the product remains in the database
+        """
+        # Create 3 products
+        self.test_get_all_products()
+
+        # Delete a single product
+        url = "/products/1"
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token)
+        response = self.client.delete(url, None, format='json')
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+        # Get all products and ensure product is not in default query
+        url = "/products"
+        response = self.client.get(url, None, format='json')
+        json_response = json.loads(response.content)
+        self.assertEqual(len(json_response), 2)
+
+        # Ensure the deleted product is still in the database
+        url = "/products/deleted"
+        response = self.client.get(url, None, format='json')
+        json_response = json.loads(response.content)
+        self.assertEqual(len(json_response), 1)
+        
 
     def test_add_rating_to_product(self):
         """
