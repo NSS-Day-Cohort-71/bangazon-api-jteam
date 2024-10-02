@@ -6,16 +6,20 @@ from django.core.files.base import ContentFile
 from django.http import HttpResponseServerError
 from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
-from rest_framework import serializers
-from rest_framework import status
-from bangazonapi.models import Product, Customer, ProductCategory
+from rest_framework import serializers, status
+from bangazonapi.models import Product, Customer, ProductCategory, Rating
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
-from rest_framework.parsers import MultiPartParser, FormParser
-from django.db.models import Q
 
+class RatingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Rating
+        fields = ('id', 'customer', 'score', 'rating_text')
+        read_only_fields = ('customer',)
 
 class ProductSerializer(serializers.ModelSerializer):
     """JSON serializer for products"""
+    average_rating = serializers.ReadOnlyField()
+    
     class Meta:
         model = Product
         fields = ('id', 'name', 'price', 'number_sold', 'description',
@@ -305,3 +309,33 @@ class Products(ViewSet):
             return Response(None, status=status.HTTP_204_NO_CONTENT)
 
         return Response(None, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    @action(methods=['post'], detail=True, url_path='rate-product')
+    def rate_product(self, request, pk=None):
+        """Add a rating to a product"""
+        try:
+            product = Product.objects.get(pk=pk)
+            
+            # Create the rating
+            rating = Rating.objects.create(
+                customer=request.auth.user.customer,
+                score=request.data["score"],
+                rating_text=request.data.get("rating_text", None)
+            )
+            
+            # Associate the rating with the product
+            product.rating.add(rating)
+            
+            serializer = RatingSerializer(rating)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
+        except Product.DoesNotExist:
+            return Response(
+                {'message': 'Product does not exist.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except KeyError as ex:
+            return Response(
+                {'message': f'Key {str(ex)} is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
