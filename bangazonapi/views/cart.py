@@ -9,8 +9,8 @@ from rest_framework import serializers
 from bangazonapi.models import Order, Customer, Product, OrderProduct
 from .product import ProductSerializer
 from .order import OrderSerializer
-from .product import ProductSerializer
-from .order import OrderSerializer
+from bangazonapi.models import Payment
+
 
 class CartLineItemSerializer(serializers.HyperlinkedModelSerializer):
     """JSON serializer for line items """
@@ -158,4 +158,68 @@ class Cart(ViewSet):
         return Response(final["order"])
     
     def retrieve(self, request, pk=None):
-        pass
+        """
+        @api {GET} /cart/:id GET specific order in cart
+        @apiName GetCartById
+        @apiGroup ShoppingCart
+
+        @apiParam {id} id Order Id to retrieve
+        @apiSuccessExample {json} Success
+            HTTP/1.1 200 OK
+            {
+                "id": 1,
+                "url": "http://localhost:8000/orders/1",
+                "created_date": "2024-10-02",
+                "payment_type": null,
+                "customer": "http://localhost:8000/customers/1",
+                "lineitems": [...]
+            }
+        """
+        current_user = Customer.objects.get(user=request.auth.user)
+
+        try:
+            # Fetch the specific order (cart) by ID and user
+            open_order = Order.objects.get(pk=pk, customer=current_user, payment_type__isnull=True)
+
+            # Serialize the order and return it
+            serializer = OrderSerializer(open_order, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Order.DoesNotExist as ex:
+            return Response({'message': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    def update(self, request, pk=None):
+        """
+        @api {PUT} /cart/:id PUT payment type to complete order
+        @apiName AddPaymentToCart
+        @apiGroup ShoppingCart
+
+        @apiParam {Number} id Order Id to complete
+        @apiParam {Number} payment_type Payment type Id to add to order
+        @apiSuccessExample {json} Success
+            HTTP/1.1 204 No Content
+        """
+        current_user = Customer.objects.get(user=request.auth.user)
+        
+        try:
+            # Get the open order for the customer
+            open_order = Order.objects.get(pk=pk, customer=current_user, payment_type=None)
+
+            # Get the payment type from the request
+            payment_type_id = request.data.get('payment_type', None)
+            if not payment_type_id:
+                return Response({"message": "Payment type is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                payment = Payment.objects.get(pk=payment_type_id, customer=current_user)
+            except Payment.DoesNotExist:
+                return Response({"message": "Invalid payment type"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Assign the payment type to the open order to complete it
+            open_order.payment_type = payment
+            open_order.save()
+
+            return Response({}, status=status.HTTP_204_NO_CONTENT)
+
+        except Order.DoesNotExist:
+            return Response({"message": "Order not found or already completed"}, status=status.HTTP_404_NOT_FOUND)
