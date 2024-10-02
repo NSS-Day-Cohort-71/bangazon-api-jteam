@@ -8,6 +8,7 @@ from rest_framework import serializers, status
 from rest_framework.decorators import action
 from bangazonapi.models import Order, Customer, OrderProduct, Payment
 from .product import ProductSerializer
+from django.shortcuts import render
 
 
 class PaymentTypeSerializer(serializers.ModelSerializer):
@@ -184,3 +185,39 @@ class Orders(ViewSet):
         json_orders = OrderSerializer(orders, many=True, context={"request": request})
 
         return Response(json_orders.data)
+    
+    @action(detail=False, methods=['get'], url_path='reports/orders')
+    def reports(self, request):
+        """
+        Generates an HTML report based on the 'status' query parameter.
+        If status is 'incomplete', it shows unpaid orders.
+        If status is 'complete', it shows paid orders with total cost and payment type.
+        """
+        status = request.GET.get('status', None)
+
+        if status not in ['incomplete', 'complete']:
+            # Default to 'incomplete' report
+            status = 'incomplete'
+
+        # Set filtering based on status
+        is_paid = (status == 'complete')
+
+        # Retrieve orders based on payment_type
+        orders = Order.objects.filter(payment_type__isnull=not is_paid).annotate(
+            total_cost=Sum(F('lineitems__product__price'))
+        )
+
+        order_data = [
+            {
+                'order_id': order.id,
+                'customer_name': f"{order.customer.user.first_name} {order.customer.user.last_name}",
+                'total_cost': order.total_cost,
+                'payment_type': order.payment_type.merchant_name if is_paid else None
+            }
+            for order in orders
+        ]
+
+        template = 'reports/complete_orders.html' if is_paid else 'reports/incomplete_orders.html'
+        
+        return render(request, template, {'orders': order_data})
+

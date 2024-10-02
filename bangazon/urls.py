@@ -4,7 +4,7 @@ from django.conf.urls.static import static
 from rest_framework import routers
 from rest_framework.authtoken.views import obtain_auth_token
 from bangazonapi.models import *
-from bangazonapi.views import *
+from bangazonapi.views import register_user,login_user,Orders,Payments,Products,Cart,Profile,ProductCategories,LineItems,Customers,Users,StoreViewSet
 from bangazonapi.views.product import (
     expensive_products_report,
     inexpensive_products_report,
