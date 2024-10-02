@@ -114,8 +114,6 @@ class OrderTests(APITestCase):
         self.assertEqual(json_response["expiration_date"], "2024-12-31")
         self.assertEqual(json_response["create_date"], str(datetime.date.today()))
 
-    # TODO: Complete order by adding payment type
-
     def test_complete_order_by_adding_payment(self):
         """
         Ensure we can complete an order by adding payment type.
@@ -129,9 +127,6 @@ class OrderTests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION="Token " + self.token)
         response = self.client.get(url, format="json")
         json_response = json.loads(response.content)
-
-        # Debugging: Print cart response to verify if order exists
-        print("Cart Response:", json_response)  # Ensure cart has products and order ID
 
         # Get the correct order ID from the cart response
         order_id = json_response.get("id", None)
@@ -156,9 +151,6 @@ class OrderTests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION="Token " + self.token)
         response = self.client.get(url, None, format="json")
         json_response = json.loads(response.content)
-
-        # Debugging: Print the final order response to verify the payment type
-        print("Order Response After Adding Payment:", json_response)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(json_response["id"], order_id)
