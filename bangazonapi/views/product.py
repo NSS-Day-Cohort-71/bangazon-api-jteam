@@ -1,8 +1,10 @@
 """View module for handling requests about products"""
+
 from rest_framework.decorators import action
 import base64
 from django.core.files.base import ContentFile
 from django.http import HttpResponseServerError
+from django.shortcuts import render
 from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
 from rest_framework import serializers, status
@@ -10,26 +12,42 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from bangazonapi.models import Product, Customer, ProductCategory, Rating
 from bangazonapi.models.recommendation import Recommendation
 
+
 class RatingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rating
-        fields = ('id', 'customer', 'score', 'rating_text')
-        read_only_fields = ('customer',)
+        fields = ("id", "customer", "score", "rating_text")
+        read_only_fields = ("customer",)
+
 
 class ProductSerializer(serializers.ModelSerializer):
     """JSON serializer for products"""
+
     average_rating = serializers.ReadOnlyField()
-    
+
     class Meta:
         model = Product
-        fields = ('id', 'name', 'price', 'number_sold', 'description',
-                  'quantity', 'created_date', 'location', 'image_path',
-                  'average_rating', 'can_be_rated', 'rating_count', 'number_of_likes')
+        fields = (
+            "id",
+            "name",
+            "price",
+            "number_sold",
+            "description",
+            "quantity",
+            "created_date",
+            "location",
+            "image_path",
+            "average_rating",
+            "can_be_rated",
+            "rating_count",
+            "number_of_likes",
+        )
         depth = 1
 
 
 class Products(ViewSet):
     """Request handlers for Products in the Bangazon Platform"""
+
     permission_classes = (IsAuthenticatedOrReadOnly,)
 
     def create(self, request):
@@ -103,16 +121,18 @@ class Products(ViewSet):
         new_product.category = product_category
 
         if "image_path" in request.data:
-            format, imgstr = request.data["image_path"].split(';base64,')
-            ext = format.split('/')[-1]
-            data = ContentFile(base64.b64decode(imgstr), name=f'{new_product.id}-{request.data["name"]}.{ext}')
+            format, imgstr = request.data["image_path"].split(";base64,")
+            ext = format.split("/")[-1]
+            data = ContentFile(
+                base64.b64decode(imgstr),
+                name=f'{new_product.id}-{request.data["name"]}.{ext}',
+            )
 
             new_product.image_path = data
 
         new_product.save()
 
-        serializer = ProductSerializer(
-            new_product, context={'request': request})
+        serializer = ProductSerializer(new_product, context={"request": request})
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -157,7 +177,7 @@ class Products(ViewSet):
         """
         try:
             product = Product.objects.get(pk=pk)
-            serializer = ProductSerializer(product, context={'request': request})
+            serializer = ProductSerializer(product, context={"request": request})
             return Response(serializer.data)
         except Exception as ex:
             return HttpResponseServerError(ex)
@@ -214,10 +234,12 @@ class Products(ViewSet):
             return Response({}, status=status.HTTP_204_NO_CONTENT)
 
         except Product.DoesNotExist as ex:
-            return Response({'message': ex.args[0]}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": ex.args[0]}, status=status.HTTP_404_NOT_FOUND)
 
         except Exception as ex:
-            return Response({'message': ex.args[0]}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"message": ex.args[0]}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def list(self, request):
         """
@@ -250,51 +272,54 @@ class Products(ViewSet):
         products = Product.objects.all()
 
         # Support filtering by category and/or quantity
-        category = self.request.query_params.get('category', None)
-        min_price = self.request.query_params.get('min_price', None)
-        name = self.request.query_params.get('name', None)
-        location = self.request.query_params.get('location', None)
-        quantity = self.request.query_params.get('quantity', None)
-        order = self.request.query_params.get('order_by', None)
-        direction = self.request.query_params.get('direction', None)
-        number_sold = self.request.query_params.get('number_sold', None)
+        category = self.request.query_params.get("category", None)
+        min_price = self.request.query_params.get("min_price", None)
+        name = self.request.query_params.get("name", None)
+        location = self.request.query_params.get("location", None)
+        quantity = self.request.query_params.get("quantity", None)
+        order = self.request.query_params.get("order_by", None)
+        direction = self.request.query_params.get("direction", None)
+        number_sold = self.request.query_params.get("number_sold", None)
 
         if order is not None:
             order_filter = order
 
             if direction is not None:
                 if direction == "desc":
-                    order_filter = f'-{order}'
+                    order_filter = f"-{order}"
 
             products = products.order_by(order_filter)
 
         if category is not None:
             products = products.filter(category__id=category)
-        
+
         if min_price is not None:
             products = products.filter(price__gte=float(min_price))
 
         if name is not None:
             products = products.filter(name__contains=name)
-        
+
         if location is not None:
             products = products.filter(location__contains=location)
 
         if quantity is not None:
-            products = products.order_by("-created_date")[:int(quantity)]
+            products = products.order_by("-created_date")[: int(quantity)]
 
         if number_sold is not None:
+
             def sold_filter(product):
                 if product.number_sold >= int(number_sold):
                     return True
                 return False
+
             products = filter(sold_filter, products)
 
         serializer = ProductSerializer(
-            products, many=True, context={'request': request})
+            products, many=True, context={"request": request}
+        )
         return Response(serializer.data)
 
-    @action(methods=['post'], detail=True)
+    @action(methods=["post"], detail=True)
     def recommend(self, request, pk=None):
         """Recommend products to other users"""
 
@@ -308,49 +333,76 @@ class Products(ViewSet):
 
             return Response(None, status=status.HTTP_204_NO_CONTENT)
 
-        return Response(None, status=status.HTTP_405_METHOD_NOT_ALLOWED)    
+        return Response(None, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-    @action(methods=['post'], detail=True, url_path='rate-product')
+    @action(methods=["post"], detail=True, url_path="rate-product")
     def rate_product(self, request, pk=None):
         """Add a rating to a product"""
         try:
             product = Product.objects.get(pk=pk)
-            
+
             # Create the rating
             rating = Rating.objects.create(
                 customer=request.auth.user.customer,
                 score=request.data["score"],
-                rating_text=request.data.get("rating_text", None)
+                rating_text=request.data.get("rating_text", None),
             )
-            
+
             # Associate the rating with the product
             product.rating.add(rating)
-            
+
             serializer = RatingSerializer(rating)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-            
+
         except Product.DoesNotExist:
             return Response(
-                {'message': 'Product does not exist.'},
-                status=status.HTTP_404_NOT_FOUND
+                {"message": "Product does not exist."}, status=status.HTTP_404_NOT_FOUND
             )
         except KeyError as ex:
             return Response(
-                {'message': f'Key {str(ex)} is required'},
-                status=status.HTTP_400_BAD_REQUEST
+                {"message": f"Key {str(ex)} is required"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-    @action(methods=['get'], detail=False, url_path='deleted')
+
+    @action(methods=["get"], detail=False, url_path="deleted")
     def deleted_products(self, request):
         """
         @api {GET} /products/deleted GET soft-deleted products
         @apiName GetDeletedProducts
         @apiGroup Product
-        
+
         @apiSuccess (200) {Array} products List of soft-deleted products.
         """
 
         # Get only soft-deleted products
         deleted_products = Product.objects.deleted_only()
 
-        serializer = ProductSerializer(deleted_products, many=True, context={'request': request})
+        serializer = ProductSerializer(
+            deleted_products, many=True, context={"request": request}
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# Product Reports
+def expensive_products_report(request):
+    products = Product.objects.filter(price__gte=1000).order_by("-price")
+
+    context = {
+        "report_title": "Expensive Products Report",
+        "report_description": "Products priced at $1000 or more",
+        "products": products,
+    }
+
+    return render(request, "reports/price_report.html", context)
+
+
+def inexpensive_products_report(request):
+    products = Product.objects.filter(price__lt=1000).order_by("-price")
+
+    context = {
+        "report_title": "Inexpensive Products Report",
+        "report_description": "Products priced at $999 or less",
+        "products": products,
+    }
+
+    return render(request, "reports/price_report.html", context)
