@@ -85,7 +85,7 @@ class Orders(ViewSet):
             order = (
                 Order.objects.annotate(total=Sum(F("lineitems__product__price")))
                 .select_related("payment_type")
-                .get(pk=pk, customer=customer, payment_type__isnull=False)
+                .get(pk=pk, customer=customer)
             )
             serializer = OrderSerializer(order, context={"request": request})
             return Response(serializer.data)
@@ -122,7 +122,7 @@ class Orders(ViewSet):
             HTTP/1.1 204 No Content
         """
         customer = Customer.objects.get(user=request.auth.user)
-        
+    
         # Retrieve the order instance
         order = Order.objects.get(pk=pk, customer=customer)
         
