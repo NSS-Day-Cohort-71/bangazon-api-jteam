@@ -132,7 +132,9 @@ class OrderTests(APITestCase):
         order_id = json_response.get("id", None)
 
         # If no order ID was found, raise an error for better insight
-        self.assertIsNotNone(order_id, "Order ID should not be None after adding a product to the cart")
+        self.assertIsNotNone(
+            order_id, "Order ID should not be None after adding a product to the cart"
+        )
 
         # Add payment type
         self.test_create_payment_type()
@@ -158,10 +160,36 @@ class OrderTests(APITestCase):
         # Correct the assertion to check the nested 'payment_type' object
         self.assertEqual(json_response["payment_type"]["id"], 1)
 
+    def test_add_product_to_closed_order(self):
+        """
+        Ensure that when a product is added to the cart when a closed order exists,
+        it creates a new open order instead of adding to the closed one.
+        """
+        # Create and capture ID of first order
+        self.test_add_product_to_order()
+        url = "/cart"
+        response = self.client.get(url)
+        first_order_id = json.loads(response.content)["id"]
 
+        # Close the first order by adding payment_type
+        self.test_create_payment_type()
+        url = f"/orders/{first_order_id}"
+        data = {"payment_type": 1}
+        response = self.client.put(url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
+        # Manually create second order
+        url = "/cart"
+        data = {"product_id": 1}
+        self.client.credentials(HTTP_AUTHORIZATION="Token " + self.token)
+        response = self.client.post(url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+        # Get cart and verify it's a new order
+        response = self.client.get(url)
+        second_cart = json.loads(response.content)
 
-
-
-    # TODO: New line item is not added to closed order
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotEqual(second_cart["id"], first_order_id)
+        self.assertEqual(second_cart["size"], 1)
+        self.assertIsNone(second_cart.get("payment_type"))
