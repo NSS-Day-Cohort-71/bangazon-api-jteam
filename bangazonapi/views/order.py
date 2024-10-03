@@ -16,7 +16,6 @@ class PaymentTypeSerializer(serializers.ModelSerializer):
         model = Payment
         fields = ("id", "merchant_name")
 
-
 class OrderLineItemSerializer(serializers.HyperlinkedModelSerializer):
     """JSON serializer for line items"""
 
@@ -29,7 +28,6 @@ class OrderLineItemSerializer(serializers.HyperlinkedModelSerializer):
         )
         fields = ("id", "product")
         depth = 1
-
 
 class OrderSerializer(serializers.HyperlinkedModelSerializer):
     """JSON serializer for customer orders"""
@@ -123,22 +121,23 @@ class Orders(ViewSet):
             HTTP/1.1 204 No Content
         """
         customer = Customer.objects.get(user=request.auth.user)
-    
+
         # Retrieve the order instance
         order = Order.objects.get(pk=pk, customer=customer)
-        
+
         # Retrieve the Payment instance using the provided payment_type ID
         try:
             payment = Payment.objects.get(pk=request.data["payment_type"])
         except Payment.DoesNotExist:
-            return Response({'message': 'Invalid payment type.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"message": "Invalid payment type."}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Assign the Payment instance to the order's payment_type field
         order.payment_type = payment
         order.save()
 
         return Response({}, status=status.HTTP_204_NO_CONTENT)
-
 
     def list(self, request):
         """
@@ -185,39 +184,42 @@ class Orders(ViewSet):
         json_orders = OrderSerializer(orders, many=True, context={"request": request})
 
         return Response(json_orders.data)
-    
-    @action(detail=False, methods=['get'], url_path='reports/orders')
+
+    @action(detail=False, methods=["get"], url_path="reports/orders")
     def reports(self, request):
         """
         Generates an HTML report based on the 'status' query parameter.
         If status is 'incomplete', it shows unpaid orders.
         If status is 'complete', it shows paid orders with total cost and payment type.
         """
-        status = request.GET.get('status', None)
+        status = request.GET.get("status", None)
 
-        if status not in ['incomplete', 'complete']:
+        if status not in ["incomplete", "complete"]:
             # Default to 'incomplete' report
-            status = 'incomplete'
+            status = "incomplete"
 
         # Set filtering based on status
-        is_paid = (status == 'complete')
+        is_paid = status == "complete"
 
         # Retrieve orders based on payment_type
         orders = Order.objects.filter(payment_type__isnull=not is_paid).annotate(
-            total_cost=Sum(F('lineitems__product__price'))
+            total_cost=Sum(F("lineitems__product__price"))
         )
 
         order_data = [
             {
-                'order_id': order.id,
-                'customer_name': f"{order.customer.user.first_name} {order.customer.user.last_name}",
-                'total_cost': order.total_cost,
-                'payment_type': order.payment_type.merchant_name if is_paid else None
+                "order_id": order.id,
+                "customer_name": f"{order.customer.user.first_name} {order.customer.user.last_name}",
+                "total_cost": order.total_cost,
+                "payment_type": order.payment_type.merchant_name if is_paid else None,
             }
             for order in orders
         ]
 
-        template = 'reports/complete_orders.html' if is_paid else 'reports/incomplete_orders.html'
-        
-        return render(request, template, {'orders': order_data})
+        template = (
+            "reports/complete_orders.html"
+            if is_paid
+            else "reports/incomplete_orders.html"
+        )
 
+        return render(request, template, {"orders": order_data})
