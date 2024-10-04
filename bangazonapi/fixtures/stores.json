@@ -16,5 +16,14 @@
       "name": "Joe's Store",
       "description": "Joe's Joyful Junk"
     }
+  },
+  {
+    "model": "bangazonapi.Store",
+    "pk": 3,
+    "fields": {
+      "customer_id": 7,
+      "name": "J Crew",
+      "description": "Clothing for people with J's in their name"
+    }
   }
 ]
