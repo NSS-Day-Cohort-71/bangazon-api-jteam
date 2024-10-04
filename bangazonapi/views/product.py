@@ -415,50 +415,44 @@ class Products(ViewSet):
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @action(methods=['post'], detail=True, url_path='like')
-    def create_like(self, request, pk=None):
-        """
-        Handle POST requests to /products/:id/like to like a product.
-        """
-        try:
-            product = Product.objects.get(pk=pk)
-            customer = Customer.objects.get(user=request.auth.user)
 
-            # Check if the customer has already liked this product
-            if Like.objects.filter(product=product, customer=customer).exists():
-                return Response({'message': 'Product already liked.'}, status=status.HTTP_400_BAD_REQUEST)
+    @action(methods=['post', 'delete'], detail=True, url_path='like')
+    def like_unlike(self, request, pk=None):
+        if request.method == 'POST':
+            try:
+                product = Product.objects.get(pk=pk)
+                customer = Customer.objects.get(user=request.auth.user)
 
-            # Create a new Like instance
-            Like.objects.create(product=product, customer=customer)
+                # Check if the customer has already liked this product
+                if Like.objects.filter(product=product, customer=customer).exists():
+                    return Response({'message': 'Product already liked.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            return Response({'message': 'Product liked successfully.'}, status=status.HTTP_201_CREATED)
+                # Create a new Like instance
+                Like.objects.create(product=product, customer=customer)
 
-        except Product.DoesNotExist:
-            return Response({'message': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
+                return Response({'message': 'Product liked successfully.'}, status=status.HTTP_201_CREATED)
 
-    @csrf_exempt
-    @action(methods=['delete'], detail=True, url_path='unlike')
-    def destroy_like(self, request, pk=None):
-        print(f"Deleting like for product {pk} by user {request.auth.user}")
-        """
-        Handle DELETE requests to /products/:id/like to unlike a product.
-        """
-        try:
-            product = Product.objects.get(pk=pk)
-            customer = Customer.objects.get(user=request.auth.user)
+            except Product.DoesNotExist:
+                return Response({'message': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-            # Check if the like exists
-            like = Like.objects.filter(product=product, customer=customer).first()
-            if not like:
-                return Response({'message': 'Like not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-            # Delete the like
-            like.delete()
+        elif request.method == 'DELETE':
+            try:
+                product = Product.objects.get(pk=pk)
+                customer = Customer.objects.get(user=request.auth.user)
 
-            return Response({'message': 'Product unliked successfully.'}, status=status.HTTP_204_NO_CONTENT)
+                # Check if the like exists
+                like = Like.objects.filter(product=product, customer=customer).first()
+                if not like:
+                    return Response({'message': 'Like not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        except Product.DoesNotExist:
-            return Response({'message': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
+                # Delete the like
+                like.delete()
+
+                return Response({'message': 'Product unliked successfully.'}, status=status.HTTP_204_NO_CONTENT)
+
+            except Product.DoesNotExist:
+                return Response({'message': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
 
 # Product Reports
 def expensive_products_report(request):
