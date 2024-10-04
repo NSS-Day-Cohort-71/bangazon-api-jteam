@@ -3,6 +3,7 @@
 from django.db.models import Sum, F
 from django.db.models.functions import Round
 import datetime
+from rest_framework.decorators import action
 from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
 from rest_framework import status
@@ -10,7 +11,6 @@ from rest_framework import serializers
 from bangazonapi.models import Order, Customer, Product, OrderProduct
 from .product import ProductSerializer
 from .order import OrderSerializer
-from bangazonapi.models import Payment
 
 
 class CartLineItemSerializer(serializers.HyperlinkedModelSerializer):
@@ -42,21 +42,26 @@ class Cart(ViewSet):
             open_order = Order.objects.get(
                 customer=current_user, payment_type__isnull=True
             )
-        except Order.DoesNotExist as ex:
+        except Order.DoesNotExist:
             open_order = Order()
             open_order.created_date = datetime.datetime.now()
             open_order.customer = current_user
             open_order.save()
 
         product_id = request.data.get("product_id")
+        try:
+            product = Product.objects.get(pk=product_id)
+        except Product.DoesNotExist:
+            return Response(
+                {"message": "Product not found."}, status=status.HTTP_404_NOT_FOUND
+            )
 
         line_item = OrderProduct()
-        line_item.product = Product.objects.get(pk=product_id)
+        line_item.product = product
         line_item.order = open_order
         line_item.save()
 
         serializer = CartLineItemSerializer(line_item, context={"request": request})
-
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def destroy(self, request, pk=None):
@@ -75,27 +80,15 @@ class Cart(ViewSet):
         try:
             open_order = Order.objects.get(customer=current_user, payment_type=None)
 
-            empty_cart = request.query_params.get("empty", False)
-
-            if empty_cart:
-                # Delete all line items in the cart
-                OrderProduct.objects.filter(order=open_order).delete()
-                open_order.delete()
-            else:
-                # Delete specific line item
-                line_item = OrderProduct.objects.filter(
-                    product__id=pk, order=open_order
-                ).first()
-
-                if line_item:
-                    line_item.delete()
-                else:
-                    return Response(
-                        {"message": "Item not found in cart."},
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
-
-            return Response({}, status=status.HTTP_204_NO_CONTENT)
+            try:
+                line_item = OrderProduct.objects.get(id=pk, order=open_order)
+                line_item.delete()
+                return Response({}, status=status.HTTP_204_NO_CONTENT)
+            except OrderProduct.DoesNotExist:
+                return Response(
+                    {"message": "Line item not found in cart."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
 
         except Order.DoesNotExist:
             return Response(
@@ -120,7 +113,6 @@ class Cart(ViewSet):
         current_user = Customer.objects.get(user=request.auth.user)
         try:
             open_order = Order.objects.get(customer=current_user, payment_type=None)
-
             line_items = OrderProduct.objects.filter(order=open_order)
 
             serialized_order = OrderSerializer(
@@ -143,84 +135,28 @@ class Cart(ViewSet):
         except Order.DoesNotExist as ex:
             return Response({"message": ex.args[0]}, status=status.HTTP_404_NOT_FOUND)
 
-    def retrieve(self, request, pk=None):
+    @action(detail=False, methods=["delete"])
+    def empty(self, request):
         """
-        @api {GET} /cart/:id GET specific order in cart
-        @apiName GetCartById
+        @api {DELETE} /cart/empty Empty the entire cart
+        @apiName EmptyCart
         @apiGroup ShoppingCart
 
-        @apiParam {id} id Order Id to retrieve
-        @apiSuccessExample {json} Success
-            HTTP/1.1 200 OK
-            {
-                "id": 1,
-                "url": "http://localhost:8000/orders/1",
-                "created_date": "2024-10-02",
-                "payment_type": null,
-                "customer": "http://localhost:8000/customers/1",
-                "lineitems": [...]
-            }
-        """
-        current_user = Customer.objects.get(user=request.auth.user)
-
-        try:
-            # Fetch the specific order (cart) by ID and user
-            open_order = Order.objects.get(
-                pk=pk, customer=current_user, payment_type__isnull=True
-            )
-
-            # Serialize the order and return it
-            serializer = OrderSerializer(open_order, context={"request": request})
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-        except Order.DoesNotExist as ex:
-            return Response(
-                {"message": "Order not found."}, status=status.HTTP_404_NOT_FOUND
-            )
-
-    def update(self, request, pk=None):
-        """
-        @api {PUT} /cart/:id PUT payment type to complete order
-        @apiName AddPaymentToCart
-        @apiGroup ShoppingCart
-
-        @apiParam {Number} id Order Id to complete
-        @apiParam {Number} payment_type Payment type Id to add to order
         @apiSuccessExample {json} Success
             HTTP/1.1 204 No Content
         """
         current_user = Customer.objects.get(user=request.auth.user)
 
         try:
-            # Get the open order for the customer
-            open_order = Order.objects.get(
-                pk=pk, customer=current_user, payment_type=None
-            )
+            open_order = Order.objects.get(customer=current_user, payment_type=None)
 
-            # Get the payment type from the request
-            payment_type_id = request.data.get("payment_type", None)
-            if not payment_type_id:
-                return Response(
-                    {"message": "Payment type is required"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            try:
-                payment = Payment.objects.get(pk=payment_type_id, customer=current_user)
-            except Payment.DoesNotExist:
-                return Response(
-                    {"message": "Invalid payment type"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Assign the payment type to the open order to complete it
-            open_order.payment_type = payment
-            open_order.save()
+            # Delete all line items in the cart
+            OrderProduct.objects.filter(order=open_order).delete()
+            open_order.delete()
 
             return Response({}, status=status.HTTP_204_NO_CONTENT)
 
         except Order.DoesNotExist:
             return Response(
-                {"message": "Order not found or already completed"},
-                status=status.HTTP_404_NOT_FOUND,
+                {"message": "No open order found."}, status=status.HTTP_404_NOT_FOUND
             )
