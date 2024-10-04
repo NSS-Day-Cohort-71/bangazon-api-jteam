@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
-
+from .store import Store
+from .favorite import Favorite
 
 
 class Customer(models.Model):
@@ -16,3 +17,9 @@ class Customer(models.Model):
     @recommends.setter
     def recommends(self, value):
         self.__recommends = value
+
+    def add_favorite_store(self, store):
+        Favorite.objects.get_or_create(customer=self, store=store)
+
+    def remove_favorite_store(self, store):
+        Favorite.objects.filter(customer=self, store=store).delete()
