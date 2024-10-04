@@ -42,4 +42,5 @@ urlpatterns = [
         inexpensive_products_report,
         name="inexpensive_products_report",
     ),
+    path('reports/favoritesellers', Customers.as_view({'get': 'favorite_sellers_report'}), name='favorite_sellers_report'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

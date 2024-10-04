@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Favorite Sellers Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
+        h1 { color: #333; }
+        ul { padding-left: 20px; }
+    </style>
+</head>
+<body>
+    <h1>{{ customer_name }}'s Favorite Sellers</h1>
+    {% if favorite_sellers %}
+        <ul>
+        {% for seller in favorite_sellers %}
+            <li>{{ seller.name }} - Owner: {{ seller.owner }}</li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No favorite sellers found.</p>
+    {% endif %}
+</body>
+</html>

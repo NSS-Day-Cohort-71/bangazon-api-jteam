@@ -1,11 +1,9 @@
 from django.db import models
-from .customer import Customer
-
 
 class Store(models.Model):
 
     customer = models.ForeignKey(
-        Customer,
+        "Customer",
         on_delete=models.DO_NOTHING, 
     )
     name = models.CharField(
