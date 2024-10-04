@@ -140,7 +140,7 @@ class OrderTests(APITestCase):
         self.test_create_payment_type()
 
         # Add payment type to the order using the correct order ID
-        url = f"/cart/{order_id}"  # Use the dynamically fetched order ID
+        url = f"/orders/{order_id}"  # Use the dynamically fetched order ID
         data = {"payment_type": 1}  # Ensure you're passing 'payment_type' key
         self.client.credentials(HTTP_AUTHORIZATION="Token " + self.token)
         response = self.client.put(url, data, format="json")
