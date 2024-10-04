@@ -11,6 +11,9 @@ from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from bangazonapi.models import Product, Customer, ProductCategory, Rating
 from bangazonapi.models.recommendation import Recommendation
+from bangazonapi.models import Like
+from django.views.decorators.csrf import csrf_exempt
+
 
 
 class RatingSerializer(serializers.ModelSerializer):
@@ -24,6 +27,7 @@ class ProductSerializer(serializers.ModelSerializer):
     """JSON serializer for products"""
 
     average_rating = serializers.ReadOnlyField()
+    is_liked = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -41,9 +45,16 @@ class ProductSerializer(serializers.ModelSerializer):
             "can_be_rated",
             "rating_count",
             "number_of_likes",
+            "is_liked",
         )
         depth = 1
 
+    def get_is_liked(self, obj):
+        """Check if the current user has liked the product"""
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            return obj.likes.filter(customer__user=request.user).exists()
+        return False
 
 class Products(ViewSet):
     """Request handlers for Products in the Bangazon Platform"""
@@ -363,6 +374,28 @@ class Products(ViewSet):
                 {"message": f"Key {str(ex)} is required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+    
+    @action(detail=False, methods=['get'], url_path='liked')
+    def list_liked_products(self, request):
+        """
+        Handle GET requests to /products/liked to list products liked by the authenticated user.
+        """
+        try:
+            # Get the customer (user) from the request
+            customer = Customer.objects.get(user=request.auth.user)
+            
+            # Get the products liked by the authenticated user
+            liked_products = Product.objects.filter(likes__customer=customer)
+
+            # Serialize the liked products
+            serializer = ProductSerializer(liked_products, many=True, context={'request': request})
+
+            # Return the serialized product data
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Customer.DoesNotExist:
+            return Response({'message': 'Customer not found.'}, status=status.HTTP_404_NOT_FOUND)
+
 
     @action(methods=["get"], detail=False, url_path="deleted")
     def deleted_products(self, request):
@@ -382,6 +415,50 @@ class Products(ViewSet):
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @action(methods=['post'], detail=True, url_path='like')
+    def create_like(self, request, pk=None):
+        """
+        Handle POST requests to /products/:id/like to like a product.
+        """
+        try:
+            product = Product.objects.get(pk=pk)
+            customer = Customer.objects.get(user=request.auth.user)
+
+            # Check if the customer has already liked this product
+            if Like.objects.filter(product=product, customer=customer).exists():
+                return Response({'message': 'Product already liked.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Create a new Like instance
+            Like.objects.create(product=product, customer=customer)
+
+            return Response({'message': 'Product liked successfully.'}, status=status.HTTP_201_CREATED)
+
+        except Product.DoesNotExist:
+            return Response({'message': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    @csrf_exempt
+    @action(methods=['delete'], detail=True, url_path='unlike')
+    def destroy_like(self, request, pk=None):
+        print(f"Deleting like for product {pk} by user {request.auth.user}")
+        """
+        Handle DELETE requests to /products/:id/like to unlike a product.
+        """
+        try:
+            product = Product.objects.get(pk=pk)
+            customer = Customer.objects.get(user=request.auth.user)
+
+            # Check if the like exists
+            like = Like.objects.filter(product=product, customer=customer).first()
+            if not like:
+                return Response({'message': 'Like not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+            # Delete the like
+            like.delete()
+
+            return Response({'message': 'Product unliked successfully.'}, status=status.HTTP_204_NO_CONTENT)
+
+        except Product.DoesNotExist:
+            return Response({'message': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
 
 # Product Reports
 def expensive_products_report(request):
@@ -406,3 +483,4 @@ def inexpensive_products_report(request):
     }
 
     return render(request, "reports/price_report.html", context)
+

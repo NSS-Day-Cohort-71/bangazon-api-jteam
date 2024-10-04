@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'bangazonapi',
     'safedelete',
+    'django_extensions',
 ]
 
 REST_FRAMEWORK = {
