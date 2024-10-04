@@ -15,7 +15,7 @@
     {% if favorite_sellers %}
         <ul>
         {% for seller in favorite_sellers %}
-            <li>{{ seller.name }} - Owner: {{ seller.owner }}</li>
+            <li>{{ seller.name }} | Owner: {{ seller.owner }}</li>
         {% endfor %}
         </ul>
     {% else %}
