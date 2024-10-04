@@ -146,7 +146,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     received_recommendations = ReceivedRecommendationSerializer(
         many=True
     )  # Recommendations made to the user
-    favorites = FavoriteSerializer(many=True, source="favorite_set")
+    favorites = FavoriteSerializer(many=True, source="favorite_stores")
     likes = LikeSerializer(many=True, source="like_set")
 
     class Meta:
