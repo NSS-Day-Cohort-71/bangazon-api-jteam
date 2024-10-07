@@ -119,7 +119,7 @@ class FavoriteSellerSerializer(serializers.HyperlinkedModelSerializer):
 class FavoriteSerializer(serializers.ModelSerializer):
     """JSON serializer for favorites"""
 
-    store = StoreSerializer()
+    store = StoreSerializer(read_only=True)
 
     class Meta:
         model = Favorite
@@ -148,7 +148,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     received_recommendations = ReceivedRecommendationSerializer(
         many=True
     )  # Recommendations made to the user
-    favorites = FavoriteSerializer(many=True, source="favorite_stores")
+    favorites = FavoriteSerializer(many=True, source="favorited_stores")
     likes = LikeSerializer(many=True, source="like_set")
     store = StoreSerializer(many=False, read_only=True)
 
@@ -256,7 +256,7 @@ class Profile(ViewSet):
         except Exception as ex:
             return HttpResponseServerError(ex)
 
-    @action(methods=["get", "post"], detail=False, url_path="favoritesellers")
+    @action(methods=["get", "post", "delete"], detail=False, url_path="favoritesellers")
     def favoritesellers(self, request):
         """
         @api {GET} /profile/favoritesellers GET favorite sellers
@@ -326,6 +326,22 @@ class Profile(ViewSet):
                 Favorite.objects.create(customer=customer, store=store)
 
                 return Response({'message': 'Store favorited successfully.'}, status=status.HTTP_201_CREATED)
+
+            except Store.DoesNotExist:
+                return Response({'message': 'Store not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        elif request.method == 'DELETE':
+            try:
+                customer = Customer.objects.get(user=request.auth.user)
+                store = Store.objects.get(pk=request.data["store_id"])
+
+                favorite = Favorite.objects.filter(customer=customer, store=store).first()
+                if not favorite:
+                    return Response({'message': 'Store not found.'}, status=status.HTTP_404_NOT_FOUND)
+            
+                favorite.delete()
+
+                return Response({'message': 'Store unfavorited successfully.'}, status=status.HTTP_204_NO_CONTENT)
 
             except Store.DoesNotExist:
                 return Response({'message': 'Store not found.'}, status=status.HTTP_404_NOT_FOUND)
