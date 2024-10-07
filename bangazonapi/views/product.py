@@ -13,6 +13,7 @@ from bangazonapi.models import Product, Customer, ProductCategory, Rating
 from bangazonapi.models.recommendation import Recommendation
 from bangazonapi.models import Like
 from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.models import User
 
 
 
@@ -330,21 +331,32 @@ class Products(ViewSet):
         )
         return Response(serializer.data)
 
-    @action(methods=["post"], detail=True)
+    @action(methods=["post"], detail=True, url_path="recommend")
     def recommend(self, request, pk=None):
         """Recommend products to other users"""
-
         if request.method == "POST":
             rec = Recommendation()
             rec.recommender = Customer.objects.get(user=request.auth.user)
-            rec.customer = Customer.objects.get(user__id=request.data["recipient"])
+            
+            # Extract the 'customer' field from request.data
+            user_id = request.data.get("customer")
+            
+            # Get the Customer instance using the user_id (not customer_id directly)
+            try:
+                recipient_customer = Customer.objects.get(id=user_id)
+            except Customer.DoesNotExist:
+                return Response({'message': 'Recipient customer not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+            rec.customer = recipient_customer
             rec.product = Product.objects.get(pk=pk)
 
             rec.save()
 
-            return Response(None, status=status.HTTP_204_NO_CONTENT)
+            return Response(None, status=status.HTTP_201_CREATED)
 
         return Response(None, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
 
     @action(methods=["post"], detail=True, url_path="rate-product")
     def rate_product(self, request, pk=None):
