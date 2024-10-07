@@ -148,6 +148,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     )  # Recommendations made to the user
     favorites = FavoriteSerializer(many=True, source="favorite_stores")
     likes = LikeSerializer(many=True, source="like_set")
+    store = StoreSerializer(many=False, read_only=True)
 
     class Meta:
         model = Customer
@@ -162,6 +163,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "received_recommendations",
             "favorites",
             "likes",
+            "store",
         )
         depth = 1
 
