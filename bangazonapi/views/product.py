@@ -14,6 +14,7 @@ from bangazonapi.models.recommendation import Recommendation
 from bangazonapi.models import Like
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.models import User
+from django.db.models import Max
 
 
 
@@ -259,77 +260,69 @@ class Products(ViewSet):
         @apiName ListProducts
         @apiGroup Product
 
-        @apiSuccess (200) {Object[]} products Array of products
-        @apiSuccessExample {json} Success
-            [
-                {
-                    "id": 101,
-                    "url": "http://localhost:8000/products/101",
-                    "name": "Kite",
-                    "price": 14.99,
-                    "number_sold": 0,
-                    "description": "It flies high",
-                    "quantity": 60,
-                    "created_date": "2019-10-23",
-                    "location": "Pittsburgh",
-                    "image_path": null,
-                    "average_rating": 0,
-                    "category": {
-                        "url": "http://localhost:8000/productcategories/6",
-                        "name": "Games/Toys"
-                    }
-                }
-            ]
+        @apiSuccess (200) {Object[]} products Array of products, grouped by category if no filters.
         """
-        products = Product.objects.all()
+        # Check if filters are applied
+        filters_applied = any(param in request.query_params for param in ["category", "min_price", "name", "location", "quantity", "number_sold", "order_by", "direction"])
 
-        # Support filtering by category and/or quantity
-        category = self.request.query_params.get("category", None)
-        min_price = self.request.query_params.get("min_price", None)
-        name = self.request.query_params.get("name", None)
-        location = self.request.query_params.get("location", None)
-        quantity = self.request.query_params.get("quantity", None)
-        order = self.request.query_params.get("order_by", None)
-        direction = self.request.query_params.get("direction", None)
-        number_sold = self.request.query_params.get("number_sold", None)
+        if filters_applied:
+            # Handle filtered products, no grouping by category
+            products = Product.objects.all()
 
-        if order is not None:
-            order_filter = order
+            category = request.query_params.get("category", None)
+            min_price = request.query_params.get("min_price", None)
+            name = request.query_params.get("name", None)
+            location = request.query_params.get("location", None)
+            quantity = request.query_params.get("quantity", None)
+            number_sold = request.query_params.get("number_sold", None)
+            order = request.query_params.get("order_by", None)
+            direction = request.query_params.get("direction", None)
 
-            if direction is not None:
-                if direction == "desc":
+            if category is not None:
+                products = products.filter(category__id=category)
+
+            if min_price is not None:
+                products = products.filter(price__gte=float(min_price))
+
+            if name is not None:
+                products = products.filter(name__contains=name)
+
+            if location is not None:
+                products = products.filter(location__contains=location)
+
+            if quantity is not None:
+                products = products.order_by("-created_date")[: int(quantity)]
+
+            if number_sold is not None:
+                products = products.filter(number_sold__gte=int(number_sold))
+
+            if order is not None:
+                order_filter = order
+                if direction is not None and direction == "desc":
                     order_filter = f"-{order}"
+                products = products.order_by(order_filter)
 
-            products = products.order_by(order_filter)
+            serializer = ProductSerializer(products, many=True, context={"request": request})
+            return Response({
+                "header": "Products matching filters",
+                "products": serializer.data
+            })
 
-        if category is not None:
-            products = products.filter(category__id=category)
+        else:
+            # No filters applied, group products by category and return 5 most recent products per category
+            categories = ProductCategory.objects.all()
+            grouped_products = []
 
-        if min_price is not None:
-            products = products.filter(price__gte=float(min_price))
+            for category in categories:
+                # Get the 5 most recent products per category
+                recent_products = Product.objects.filter(category=category).order_by('-created_date')[:5]
+                if recent_products:
+                    grouped_products.append({
+                        "category": category.name,
+                        "products": ProductSerializer(recent_products, many=True, context={"request": request}).data
+                    })
 
-        if name is not None:
-            products = products.filter(name__contains=name)
-
-        if location is not None:
-            products = products.filter(location__contains=location)
-
-        if quantity is not None:
-            products = products.order_by("-created_date")[: int(quantity)]
-
-        if number_sold is not None:
-
-            def sold_filter(product):
-                if product.number_sold >= int(number_sold):
-                    return True
-                return False
-
-            products = filter(sold_filter, products)
-
-        serializer = ProductSerializer(
-            products, many=True, context={"request": request}
-        )
-        return Response(serializer.data)
+            return Response(grouped_products)
 
     @action(methods=["post"], detail=True, url_path="recommend")
     def recommend(self, request, pk=None):
