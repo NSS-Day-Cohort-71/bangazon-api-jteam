@@ -79,19 +79,19 @@ class StoreViewSet(viewsets.ModelViewSet):
         customer = Customer.objects.get(user=self.request.user)
         serializer.save(customer=customer)
 
-    @action(detail=True, methods=["post"])
-    def favorite(self, request, pk=None):
-        store = self.get_object()
-        customer = Customer.objects.get(user=request.user)
-        customer.add_favorite_store(store)
-        return Response({"status": "store favorited"})
+    # @action(detail=True, methods=["post"])
+    # def favorite(self, request, pk=None):
+    #     store = self.get_object()
+    #     customer = Customer.objects.get(user=request.user)
+    #     customer.add_favorite_store(store)
+    #     return Response({"status": "store favorited"})
 
-    @action(detail=True, methods=["post"])
-    def unfavorite(self, request, pk=None):
-        store = self.get_object()
-        customer = Customer.objects.get(user=request.user)
-        customer.remove_favorite_store(store)
-        return Response({"status": "store unfavorited"})
+    # @action(detail=True, methods=["post"])
+    # def unfavorite(self, request, pk=None):
+    #     store = self.get_object()
+    #     customer = Customer.objects.get(user=request.user)
+    #     customer.remove_favorite_store(store)
+    #     return Response({"status": "store unfavorited"})
 
     
     def retrieve(self, request, pk=None):
