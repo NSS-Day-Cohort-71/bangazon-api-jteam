@@ -117,7 +117,7 @@ class FavoriteSellerSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class FavoriteSerializer(serializers.ModelSerializer):
-    """JSON serializer for favorites"""
+    """JSON serializer for customer's favorite stores"""
 
     store = StoreSerializer(read_only=True)
 
@@ -148,7 +148,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     received_recommendations = ReceivedRecommendationSerializer(
         many=True
     )  # Recommendations made to the user
-    favorites = FavoriteSerializer(many=True, source="favorited_stores")
+    favorites = FavoriteSerializer(many=True)
     likes = LikeSerializer(many=True, source="like_set")
     store = StoreSerializer(many=False, read_only=True)
 
@@ -247,6 +247,13 @@ class Profile(ViewSet):
             current_user.received_recommendations = Recommendation.objects.filter(
                 customer=current_user
             )
+
+            current_user.favorites = Favorite.objects.filter(customer=current_user)
+
+            try:
+                current_user.store = Store.objects.get(customer=current_user)
+            except Store.DoesNotExist:
+                current_user.store = None
 
             serializer = ProfileSerializer(
                 current_user, many=False, context={"request": request}
