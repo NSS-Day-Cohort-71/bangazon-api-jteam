@@ -1,8 +1,9 @@
 from rest_framework import serializers, viewsets
 from django.contrib.auth.models import User
-from bangazonapi.models import Store, Customer, StoreProduct, Order, OrderProduct
+from bangazonapi.models import Store, Customer, Favorite, StoreProduct, OrderProduct
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from django.http import HttpResponseServerError
 from .product import ProductSerializer
 
 
@@ -19,6 +20,7 @@ class StoreSerializer(serializers.ModelSerializer):
     """JSON serializer"""
 
     customer = StoreOwnerSerializer(source="customer.user", read_only=True)
+    is_favorite = serializers.SerializerMethodField()
     products = serializers.SerializerMethodField()
     products_sold = serializers.SerializerMethodField()
 
@@ -51,8 +53,15 @@ class StoreSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Store
-        fields = ("id", "customer", "name", "description", "products", "products_sold")
+        fields = ("id", "customer", "name", "description", "products", "products_sold", "is_favorite")
         read_only_fields = ["customer"]
+    
+    def get_is_favorite(self, obj):
+        """Check if the current user has favorited the store"""
+        user = self.context['request'].user
+
+        customer = Customer.objects.get(user=user)
+        return Favorite.objects.filter(customer=customer, store=obj).exists()
 
 
 class StoreViewSet(viewsets.ModelViewSet):
@@ -70,16 +79,40 @@ class StoreViewSet(viewsets.ModelViewSet):
         customer = Customer.objects.get(user=self.request.user)
         serializer.save(customer=customer)
 
-    @action(detail=True, methods=["post"])
-    def favorite(self, request, pk=None):
-        store = self.get_object()
-        customer = Customer.objects.get(user=request.user)
-        customer.add_favorite_store(store)
-        return Response({"status": "store favorited"})
+    # @action(detail=True, methods=["post"])
+    # def favorite(self, request, pk=None):
+    #     store = self.get_object()
+    #     customer = Customer.objects.get(user=request.user)
+    #     customer.add_favorite_store(store)
+    #     return Response({"status": "store favorited"})
 
-    @action(detail=True, methods=["post"])
-    def unfavorite(self, request, pk=None):
-        store = self.get_object()
-        customer = Customer.objects.get(user=request.user)
-        customer.remove_favorite_store(store)
-        return Response({"status": "store unfavorited"})
+    # @action(detail=True, methods=["post"])
+    # def unfavorite(self, request, pk=None):
+    #     store = self.get_object()
+    #     customer = Customer.objects.get(user=request.user)
+    #     customer.remove_favorite_store(store)
+    #     return Response({"status": "store unfavorited"})
+
+    
+    def retrieve(self, request, pk=None):
+        """
+        GET request for a single store
+        """
+        try:
+            store = Store.objects.get(pk=pk)
+            serializer = StoreSerializer(store, context={"request": request})
+            return Response(serializer.data)
+        except Exception as ex:
+            return HttpResponseServerError(ex)
+    
+    def list(self, request):
+        """
+        GET request for a single store
+        """
+        try:
+            stores = Store.objects.all()
+            serializer = StoreSerializer(stores, context={"request": request}, many=True)
+            return Response(serializer.data)
+        except Exception as ex:
+            return HttpResponseServerError(ex)
+

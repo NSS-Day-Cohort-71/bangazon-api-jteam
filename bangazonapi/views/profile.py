@@ -7,12 +7,14 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
+from rest_framework import serializers, status
 from bangazonapi.models import (
     Customer,
     Product,
     Favorite,
     Recommendation,
     Like,
+    Store
 )
 from .store import StoreSerializer
 
@@ -115,9 +117,9 @@ class FavoriteSellerSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class FavoriteSerializer(serializers.ModelSerializer):
-    """JSON serializer for favorites"""
+    """JSON serializer for customer's favorite stores"""
 
-    store = StoreSerializer()
+    store = StoreSerializer(read_only=True)
 
     class Meta:
         model = Favorite
@@ -146,7 +148,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     received_recommendations = ReceivedRecommendationSerializer(
         many=True
     )  # Recommendations made to the user
-    favorites = FavoriteSerializer(many=True, source="favorite_stores")
+    favorites = FavoriteSerializer(many=True)
     likes = LikeSerializer(many=True, source="like_set")
     store = StoreSerializer(many=False, read_only=True)
 
@@ -246,6 +248,13 @@ class Profile(ViewSet):
                 customer=current_user
             )
 
+            current_user.favorites = Favorite.objects.filter(customer=current_user)
+
+            try:
+                current_user.store = Store.objects.get(customer=current_user)
+            except Store.DoesNotExist:
+                current_user.store = None
+
             serializer = ProfileSerializer(
                 current_user, many=False, context={"request": request}
             )
@@ -254,7 +263,7 @@ class Profile(ViewSet):
         except Exception as ex:
             return HttpResponseServerError(ex)
 
-    @action(methods=["get"], detail=False)
+    @action(methods=["get", "post", "delete"], detail=False, url_path="favoritesellers")
     def favoritesellers(self, request):
         """
         @api {GET} /profile/favoritesellers GET favorite sellers
@@ -302,10 +311,44 @@ class Profile(ViewSet):
                 }
             ]
         """
-        customer = Customer.objects.get(user=request.auth.user)
-        favorites = Favorite.objects.filter(customer=customer)
+        if request.method == "GET":
+            customer = Customer.objects.get(user=request.auth.user)
+            favorites = Favorite.objects.filter(customer=customer)
 
-        serializer = FavoriteSerializer(
-            favorites, many=True, context={"request": request}
-        )
-        return Response(serializer.data)
+            serializer = FavoriteSerializer(
+                favorites, many=True, context={"request": request}
+            )
+            return Response(serializer.data)
+        
+        elif request.method == "POST":
+            try:
+                customer = Customer.objects.get(user=request.auth.user)
+                store = Store.objects.get(pk=request.data["store_id"])
+
+                # Check if the customer has already liked this product
+                if Favorite.objects.filter(store=store, customer=customer).exists():
+                    return Response({'message': 'Store already favorited.'}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Create a new favorite instance
+                Favorite.objects.create(customer=customer, store=store)
+
+                return Response({'message': 'Store favorited successfully.'}, status=status.HTTP_201_CREATED)
+
+            except Store.DoesNotExist:
+                return Response({'message': 'Store not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        elif request.method == 'DELETE':
+            try:
+                customer = Customer.objects.get(user=request.auth.user)
+                store = Store.objects.get(pk=request.data["store_id"])
+
+                favorite = Favorite.objects.filter(customer=customer, store=store).first()
+                if not favorite:
+                    return Response({'message': 'Store not found.'}, status=status.HTTP_404_NOT_FOUND)
+            
+                favorite.delete()
+
+                return Response({'message': 'Store unfavorited successfully.'}, status=status.HTTP_204_NO_CONTENT)
+
+            except Store.DoesNotExist:
+                return Response({'message': 'Store not found.'}, status=status.HTTP_404_NOT_FOUND)
