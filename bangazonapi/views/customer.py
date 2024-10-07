@@ -11,17 +11,55 @@ from django.shortcuts import render
 
 class CustomerSerializer(serializers.HyperlinkedModelSerializer):
     """JSON serializer for customers"""
+
+    # Add a field for the username from the related User model
+    username = serializers.CharField(source='user.username')
+
     class Meta:
         model = Customer
         url = serializers.HyperlinkedIdentityField(
             view_name='customer', lookup_field='id'
         )
-        fields = ('id', 'url', 'user', 'phone_number', 'address')
+        fields = ('id', 'url', 'username', 'phone_number', 'address')  # Include the 'username' field
         depth = 1
+
 
 
 class Customers(ViewSet):
     queryset = Customer.objects.all()
+
+    def list(self, request):
+        """
+        @api {GET} /customers GET all customers
+        @apiName ListCustomers
+        @apiGroup Customer
+
+        @apiHeader {String} Authorization Auth token
+        @apiHeaderExample {String} Authorization
+            Token 9ba45f09651c5b0c404f37a2d2572c026c146611
+
+        @apiSuccess (200) {Object[]} customers Array of customers
+        @apiSuccessExample {json} Success
+            [
+                {
+                    "id": 1,
+                    "url": "http://localhost:8000/customers/1",
+                    "username": "johndoe",
+                    "phone_number": "555-5555",
+                    "address": "123 Main St"
+                },
+                {
+                    "id": 2,
+                    "url": "http://localhost:8000/customers/2",
+                    "username": "janedoe",
+                    "phone_number": "555-1234",
+                    "address": "456 Elm St"
+                }
+            ]
+        """
+        customers = Customer.objects.all()
+        serializer = CustomerSerializer(customers, many=True, context={'request': request})
+        return Response(serializer.data)
 
     def update(self, request, pk=None):
         """
