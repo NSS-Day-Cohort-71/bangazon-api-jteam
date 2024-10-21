@@ -28,6 +28,9 @@ pytest-shutil = "^1.7.0"
 pytz = "^2024.2"
 zope-interface = "^7.0.3"
 setuptools = "^75.1.0"
+gunicorn = "^23.0.0"
+dj-database-url = "^2.2.0"
+psycopg2-binary = "^2.9.10"
 
 
 [build-system]
