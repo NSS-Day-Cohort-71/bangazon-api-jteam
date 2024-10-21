@@ -1,38 +1,34 @@
 [
-    {
-        "model": "bangazonapi.productrating",
-        "pk": 1,
-        "fields": {
-            "product": 50,
-            "customer": 4,
-            "rating": 4
-        }
-    },
-    {
-        "model": "bangazonapi.productrating",
-        "pk": 2,
-        "fields": {
-            "product": 50,
-            "customer": 5,
-            "rating": 3
-        }
-    },
-    {
-        "model": "bangazonapi.productrating",
-        "pk": 3,
-        "fields": {
-            "product": 50,
-            "customer": 6,
-            "rating": 5
-        }
-    },
-    {
-        "model": "bangazonapi.productrating",
-        "pk": 4,
-        "fields": {
-            "product": 50,
-            "customer": 7,
-            "rating": 1
-        }
+  {
+    "model": "bangazonapi.productrating",
+    "pk": 1,
+    "fields": {
+      "product_id": 50,
+      "rating_id": 4
     }
+  },
+  {
+    "model": "bangazonapi.productrating",
+    "pk": 2,
+    "fields": {
+      "product_id": 50,
+      "rating_id": 3
+    }
+  },
+  {
+    "model": "bangazonapi.productrating",
+    "pk": 3,
+    "fields": {
+      "product_id": 50,
+      "rating_id": 5
+    }
+  },
+  {
+    "model": "bangazonapi.productrating",
+    "pk": 4,
+    "fields": {
+      "product_id": 50,
+      "rating_id": 1
+    }
+  }
 ]

@@ -1,0 +1,29 @@
+[
+  {
+    "model": "bangazonapi.Store",
+    "pk": 1,
+    "fields": {
+      "customer_id": 4,
+      "name": "Steve's Stuff",
+      "description": "I'm Steve! I wanna sell you my stuff!"
+    }
+  },
+  {
+    "model": "bangazonapi.Store",
+    "pk": 2,
+    "fields": {
+      "customer_id": 5,
+      "name": "Joe's Store",
+      "description": "Joe's Joyful Junk"
+    }
+  },
+  {
+    "model": "bangazonapi.Store",
+    "pk": 3,
+    "fields": {
+      "customer_id": 7,
+      "name": "J Crew",
+      "description": "Clothing for people with J's in their name"
+    }
+  }
+]

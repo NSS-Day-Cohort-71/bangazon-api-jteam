@@ -1,30 +1,68 @@
 """View module for handling requests about products"""
+
 from rest_framework.decorators import action
-from bangazonapi.models.recommendation import Recommendation
 import base64
 from django.core.files.base import ContentFile
 from django.http import HttpResponseServerError
+from django.shortcuts import render
 from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
-from rest_framework import serializers
-from rest_framework import status
-from bangazonapi.models import Product, Customer, ProductCategory
+from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
-from rest_framework.parsers import MultiPartParser, FormParser
+from bangazonapi.models import (
+    Product,
+    Customer,
+    ProductCategory,
+    Rating,
+    Recommendation,
+    Like,
+)
+
+
+class RatingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Rating
+        fields = ("id", "customer", "score", "rating_text")
+        read_only_fields = ("customer",)
 
 
 class ProductSerializer(serializers.ModelSerializer):
     """JSON serializer for products"""
+
+    average_rating = serializers.ReadOnlyField()
+    is_liked = serializers.SerializerMethodField()
+
     class Meta:
         model = Product
-        fields = ('id', 'name', 'price', 'number_sold', 'description',
-                  'quantity', 'created_date', 'location', 'image_path',
-                  'average_rating', 'can_be_rated', )
+        fields = (
+            "id",
+            "name",
+            "price",
+            "number_sold",
+            "description",
+            "quantity",
+            "created_date",
+            "location",
+            "image_path",
+            "average_rating",
+            "can_be_rated",
+            "rating_count",
+            "number_of_likes",
+            "is_liked",
+        )
         depth = 1
+
+    def get_is_liked(self, obj):
+        """Check if the current user has liked the product"""
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            return obj.likes.filter(customer__user=request.user).exists()
+        return False
 
 
 class Products(ViewSet):
     """Request handlers for Products in the Bangazon Platform"""
+
     permission_classes = (IsAuthenticatedOrReadOnly,)
 
     def create(self, request):
@@ -84,6 +122,22 @@ class Products(ViewSet):
                 }
             }
         """
+        # Create a serializer instance with the request data
+        serializer = ProductSerializer(
+            data={
+                "name": request.data["name"],
+                "price": request.data["price"],
+                "description": request.data["description"],
+                "quantity": request.data["quantity"],
+                "location": request.data["location"],
+            }
+        )
+
+        # This will run the validators
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # If validation passes, create the product
         new_product = Product()
         new_product.name = request.data["name"]
         new_product.price = request.data["price"]
@@ -98,17 +152,18 @@ class Products(ViewSet):
         new_product.category = product_category
 
         if "image_path" in request.data:
-            format, imgstr = request.data["image_path"].split(';base64,')
-            ext = format.split('/')[-1]
-            data = ContentFile(base64.b64decode(imgstr), name=f'{new_product.id}-{request.data["name"]}.{ext}')
+            format, imgstr = request.data["image_path"].split(";base64,")
+            ext = format.split("/")[-1]
+            data = ContentFile(
+                base64.b64decode(imgstr),
+                name=f'{new_product.id}-{request.data["name"]}.{ext}',
+            )
 
             new_product.image_path = data
 
         new_product.save()
 
-        serializer = ProductSerializer(
-            new_product, context={'request': request})
-
+        serializer = ProductSerializer(new_product, context={"request": request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def retrieve(self, request, pk=None):
@@ -152,7 +207,7 @@ class Products(ViewSet):
         """
         try:
             product = Product.objects.get(pk=pk)
-            serializer = ProductSerializer(product, context={'request': request})
+            serializer = ProductSerializer(product, context={"request": request})
             return Response(serializer.data)
         except Exception as ex:
             return HttpResponseServerError(ex)
@@ -209,10 +264,12 @@ class Products(ViewSet):
             return Response({}, status=status.HTTP_204_NO_CONTENT)
 
         except Product.DoesNotExist as ex:
-            return Response({'message': ex.args[0]}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": ex.args[0]}, status=status.HTTP_404_NOT_FOUND)
 
         except Exception as ex:
-            return Response({'message': ex.args[0]}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"message": ex.args[0]}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def list(self, request):
         """
@@ -220,76 +277,262 @@ class Products(ViewSet):
         @apiName ListProducts
         @apiGroup Product
 
-        @apiSuccess (200) {Object[]} products Array of products
-        @apiSuccessExample {json} Success
-            [
-                {
-                    "id": 101,
-                    "url": "http://localhost:8000/products/101",
-                    "name": "Kite",
-                    "price": 14.99,
-                    "number_sold": 0,
-                    "description": "It flies high",
-                    "quantity": 60,
-                    "created_date": "2019-10-23",
-                    "location": "Pittsburgh",
-                    "image_path": null,
-                    "average_rating": 0,
-                    "category": {
-                        "url": "http://localhost:8000/productcategories/6",
-                        "name": "Games/Toys"
-                    }
-                }
-            ]
+        @apiSuccess (200) {Object[]} products Array of products, grouped by category if no filters.
         """
-        products = Product.objects.all()
+        # Check if filters are applied
+        filters_applied = any(
+            param in request.query_params
+            for param in [
+                "category",
+                "min_price",
+                "name",
+                "location",
+                "quantity",
+                "number_sold",
+                "order_by",
+                "direction",
+            ]
+        )
 
-        # Support filtering by category and/or quantity
-        category = self.request.query_params.get('category', None)
-        quantity = self.request.query_params.get('quantity', None)
-        order = self.request.query_params.get('order_by', None)
-        direction = self.request.query_params.get('direction', None)
-        number_sold = self.request.query_params.get('number_sold', None)
+        if filters_applied:
+            # Handle filtered products, no grouping by category
+            products = Product.objects.all()
 
-        if order is not None:
-            order_filter = order
+            category = request.query_params.get("category", None)
+            min_price = request.query_params.get("min_price", None)
+            name = request.query_params.get("name", None)
+            location = request.query_params.get("location", None)
+            quantity = request.query_params.get("quantity", None)
+            number_sold = request.query_params.get("number_sold", None)
+            order = request.query_params.get("order_by", None)
+            direction = request.query_params.get("direction", None)
 
-            if direction is not None:
-                if direction == "desc":
-                    order_filter = f'-{order}'
+            if category is not None:
+                products = products.filter(category__id=category)
 
-            products = products.order_by(order_filter)
+            if min_price is not None:
+                products = products.filter(price__gte=float(min_price))
 
-        if category is not None:
-            products = products.filter(category__id=category)
+            if name is not None:
+                products = products.filter(name__contains=name)
 
-        if quantity is not None:
-            products = products.order_by("-created_date")[:int(quantity)]
+            if location is not None:
+                products = products.filter(location__contains=location)
 
-        if number_sold is not None:
-            def sold_filter(product):
-                if product.number_sold <= int(number_sold):
-                    return True
-                return False
+            if quantity is not None:
+                products = products.order_by("-created_date")[: int(quantity)]
 
-            products = filter(sold_filter, products)
+            if number_sold is not None:
+                products = products.filter(number_sold__gte=int(number_sold))
 
-        serializer = ProductSerializer(
-            products, many=True, context={'request': request})
-        return Response(serializer.data)
+            if order is not None:
+                order_filter = order
+                if direction is not None and direction == "desc":
+                    order_filter = f"-{order}"
+                products = products.order_by(order_filter)
 
-    @action(methods=['post'], detail=True)
+            serializer = ProductSerializer(
+                products, many=True, context={"request": request}
+            )
+            return Response(
+                {"header": "Products matching filters", "products": serializer.data}
+            )
+
+        else:
+            # No filters applied, group products by category and return 5 most recent products per category
+            categories = ProductCategory.objects.all()
+            grouped_products = []
+
+            for category in categories:
+                # Get the 5 most recent products per category
+                recent_products = Product.objects.filter(category=category).order_by(
+                    "-created_date"
+                )[:5]
+                if recent_products:
+                    grouped_products.append(
+                        {
+                            "category": category.name,
+                            "products": ProductSerializer(
+                                recent_products, many=True, context={"request": request}
+                            ).data,
+                        }
+                    )
+
+            return Response(grouped_products)
+
+    @action(methods=["post"], detail=True, url_path="recommend")
     def recommend(self, request, pk=None):
         """Recommend products to other users"""
-
         if request.method == "POST":
             rec = Recommendation()
             rec.recommender = Customer.objects.get(user=request.auth.user)
-            rec.customer = Customer.objects.get(user__id=request.data["recipient"])
+
+            # Extract the 'customer' field from request.data
+            user_id = request.data.get("customer")
+
+            # Get the Customer instance using the user_id (not customer_id directly)
+            try:
+                recipient_customer = Customer.objects.get(id=user_id)
+            except Customer.DoesNotExist:
+                return Response(
+                    {"message": "Recipient customer not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            rec.customer = recipient_customer
             rec.product = Product.objects.get(pk=pk)
 
             rec.save()
 
-            return Response(None, status=status.HTTP_204_NO_CONTENT)
+            return Response(None, status=status.HTTP_201_CREATED)
 
         return Response(None, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    @action(methods=["post"], detail=True, url_path="rate-product")
+    def rate_product(self, request, pk=None):
+        """Add a rating to a product"""
+        try:
+            product = Product.objects.get(pk=pk)
+
+            # Create the rating
+            rating = Rating.objects.create(
+                customer=request.auth.user.customer,
+                score=request.data["score"],
+                rating_text=request.data.get("rating_text", None),
+            )
+
+            # Associate the rating with the product
+            product.rating.add(rating)
+
+            serializer = RatingSerializer(rating)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        except Product.DoesNotExist:
+            return Response(
+                {"message": "Product does not exist."}, status=status.HTTP_404_NOT_FOUND
+            )
+        except KeyError as ex:
+            return Response(
+                {"message": f"Key {str(ex)} is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    @action(detail=False, methods=["get"], url_path="liked")
+    def list_liked_products(self, request):
+        """
+        Handle GET requests to /products/liked to list products liked by the authenticated user.
+        """
+        try:
+            # Get the customer (user) from the request
+            customer = Customer.objects.get(user=request.auth.user)
+
+            # Get the products liked by the authenticated user
+            liked_products = Product.objects.filter(likes__customer=customer)
+
+            # Serialize the liked products
+            serializer = ProductSerializer(
+                liked_products, many=True, context={"request": request}
+            )
+
+            # Return the serialized product data
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Customer.DoesNotExist:
+            return Response(
+                {"message": "Customer not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+
+    @action(methods=["get"], detail=False, url_path="deleted")
+    def deleted_products(self, request):
+        """
+        @api {GET} /products/deleted GET soft-deleted products
+        @apiName GetDeletedProducts
+        @apiGroup Product
+
+        @apiSuccess (200) {Array} products List of soft-deleted products.
+        """
+
+        # Get only soft-deleted products
+        deleted_products = Product.objects.deleted_only()
+
+        serializer = ProductSerializer(
+            deleted_products, many=True, context={"request": request}
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(methods=["post", "delete"], detail=True, url_path="like")
+    def like_unlike(self, request, pk=None):
+        if request.method == "POST":
+            try:
+                product = Product.objects.get(pk=pk)
+                customer = Customer.objects.get(user=request.auth.user)
+
+                # Check if the customer has already liked this product
+                if Like.objects.filter(product=product, customer=customer).exists():
+                    return Response(
+                        {"message": "Product already liked."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Create a new Like instance
+                Like.objects.create(product=product, customer=customer)
+
+                return Response(
+                    {"message": "Product liked successfully."},
+                    status=status.HTTP_201_CREATED,
+                )
+
+            except Product.DoesNotExist:
+                return Response(
+                    {"message": "Product not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+        elif request.method == "DELETE":
+            try:
+                product = Product.objects.get(pk=pk)
+                customer = Customer.objects.get(user=request.auth.user)
+
+                # Check if the like exists
+                like = Like.objects.filter(product=product, customer=customer).first()
+                if not like:
+                    return Response(
+                        {"message": "Like not found."}, status=status.HTTP_404_NOT_FOUND
+                    )
+
+                # Delete the like
+                like.delete()
+
+                return Response(
+                    {"message": "Product unliked successfully."},
+                    status=status.HTTP_204_NO_CONTENT,
+                )
+
+            except Product.DoesNotExist:
+                return Response(
+                    {"message": "Product not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+
+# Product Reports
+def expensive_products_report(request):
+    products = Product.objects.filter(price__gte=1000).order_by("-price")
+
+    context = {
+        "report_title": "Expensive Products Report",
+        "report_description": "Products priced at $1000 or more",
+        "products": products,
+    }
+
+    return render(request, "reports/price_report.html", context)
+
+
+def inexpensive_products_report(request):
+    products = Product.objects.filter(price__lt=1000).order_by("-price")
+
+    context = {
+        "report_title": "Inexpensive Products Report",
+        "report_description": "Products priced at $999 or less",
+        "products": products,
+    }
+
+    return render(request, "reports/price_report.html", context)

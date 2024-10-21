@@ -1,41 +1,53 @@
 """View module for handling requests about customer order"""
-import datetime
+
+from django.db.models import Sum, F
 from django.http import HttpResponseServerError
 from rest_framework.viewsets import ViewSet
 from rest_framework.response import Response
-from rest_framework import serializers
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.decorators import action
-from bangazonapi.models import Order, Payment, Customer, Product, OrderProduct
+from bangazonapi.models import Order, Customer, OrderProduct, Payment
 from .product import ProductSerializer
+from django.shortcuts import render
 
+
+class PaymentTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = ("id", "merchant_name")
 
 class OrderLineItemSerializer(serializers.HyperlinkedModelSerializer):
-    """JSON serializer for line items """
+    """JSON serializer for line items"""
 
     product = ProductSerializer(many=False)
 
     class Meta:
         model = OrderProduct
         url = serializers.HyperlinkedIdentityField(
-            view_name='lineitem',
-            lookup_field='id'
+            view_name="lineitem", lookup_field="id"
         )
-        fields = ('id', 'product')
+        fields = ("id", "product")
         depth = 1
 
 class OrderSerializer(serializers.HyperlinkedModelSerializer):
     """JSON serializer for customer orders"""
 
     lineitems = OrderLineItemSerializer(many=True)
+    total = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    payment_type = PaymentTypeSerializer(read_only=True)
 
     class Meta:
         model = Order
-        url = serializers.HyperlinkedIdentityField(
-            view_name='order',
-            lookup_field='id'
+        url = serializers.HyperlinkedIdentityField(view_name="order", lookup_field="id")
+        fields = (
+            "id",
+            "url",
+            "created_date",
+            "payment_type",
+            "customer",
+            "lineitems",
+            "total",
         )
-        fields = ('id', 'url', 'created_date', 'payment_type', 'customer', 'lineitems')
 
 
 class Orders(ViewSet):
@@ -69,14 +81,20 @@ class Orders(ViewSet):
         """
         try:
             customer = Customer.objects.get(user=request.auth.user)
-            order = Order.objects.get(pk=pk, customer=customer)
-            serializer = OrderSerializer(order, context={'request': request})
+            order = (
+                Order.objects.annotate(total=Sum(F("lineitems__product__price")))
+                .select_related("payment_type")
+                .get(pk=pk, customer=customer)
+            )
+            serializer = OrderSerializer(order, context={"request": request})
             return Response(serializer.data)
 
         except Order.DoesNotExist as ex:
             return Response(
-                {'message': 'The requested order does not exist, or you do not have permission to access it.'},
-                status=status.HTTP_404_NOT_FOUND
+                {
+                    "message": "The requested order does not exist, or you do not have permission to access it."
+                },
+                status=status.HTTP_404_NOT_FOUND,
             )
 
         except Exception as ex:
@@ -103,8 +121,20 @@ class Orders(ViewSet):
             HTTP/1.1 204 No Content
         """
         customer = Customer.objects.get(user=request.auth.user)
+
+        # Retrieve the order instance
         order = Order.objects.get(pk=pk, customer=customer)
-        order.payment_type = request.data["payment_type"]
+
+        # Retrieve the Payment instance using the provided payment_type ID
+        try:
+            payment = Payment.objects.get(pk=request.data["payment_type"])
+        except Payment.DoesNotExist:
+            return Response(
+                {"message": "Invalid payment type."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Assign the Payment instance to the order's payment_type field
+        order.payment_type = payment
         order.save()
 
         return Response({}, status=status.HTTP_204_NO_CONTENT)
@@ -140,13 +170,56 @@ class Orders(ViewSet):
             ]
         """
         customer = Customer.objects.get(user=request.auth.user)
-        orders = Order.objects.filter(customer=customer)
+        orders = (
+            Order.objects.filter(customer=customer, payment_type__isnull=False)
+            .annotate(total=Sum(F("lineitems__product__price")))
+            .select_related("payment_type")
+            .order_by("-created_date")
+        )
 
-        payment = self.request.query_params.get('payment_id', None)
+        payment = self.request.query_params.get("payment_id", None)
         if payment is not None:
             orders = orders.filter(payment__id=payment)
 
-        json_orders = OrderSerializer(
-            orders, many=True, context={'request': request})
+        json_orders = OrderSerializer(orders, many=True, context={"request": request})
 
         return Response(json_orders.data)
+
+    @action(detail=False, methods=["get"], url_path="reports/orders")
+    def reports(self, request):
+        """
+        Generates an HTML report based on the 'status' query parameter.
+        If status is 'incomplete', it shows unpaid orders.
+        If status is 'complete', it shows paid orders with total cost and payment type.
+        """
+        status = request.GET.get("status", None)
+
+        if status not in ["incomplete", "complete"]:
+            # Default to 'incomplete' report
+            status = "incomplete"
+
+        # Set filtering based on status
+        is_paid = status == "complete"
+
+        # Retrieve orders based on payment_type
+        orders = Order.objects.filter(payment_type__isnull=not is_paid).annotate(
+            total_cost=Sum(F("lineitems__product__price"))
+        )
+
+        order_data = [
+            {
+                "order_id": order.id,
+                "customer_name": f"{order.customer.user.first_name} {order.customer.user.last_name}",
+                "total_cost": order.total_cost,
+                "payment_type": order.payment_type.merchant_name if is_paid else None,
+            }
+            for order in orders
+        ]
+
+        template = (
+            "reports/complete_orders.html"
+            if is_paid
+            else "reports/incomplete_orders.html"
+        )
+
+        return render(request, template, {"orders": order_data})

@@ -23,6 +23,11 @@ lazy-object-proxy = "^1.10.0"
 mccabe = "^0.7.0"
 pycodestyle = "^2.11.1"
 six = "^1.16.0"
+datetime = "^5.5"
+pytest-shutil = "^1.7.0"
+pytz = "^2024.2"
+zope-interface = "^7.0.3"
+setuptools = "^75.1.0"
 
 
 [build-system]

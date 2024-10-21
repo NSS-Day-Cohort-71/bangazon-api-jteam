@@ -1,0 +1,92 @@
+[
+  {
+    "model": "bangazonapi.Rating",
+    "pk": 1,
+    "fields": {
+      "customer_id": 4,
+      "score": 4,
+      "rating_text": "Great product!"
+    }
+  },
+  {
+    "model": "bangazonapi.Rating",
+    "pk": 2,
+    "fields": {
+      "customer_id": 5,
+      "score": 3,
+      "rating_text": "Average, but could be better"
+    }
+  },
+  {
+    "model": "bangazonapi.Rating",
+    "pk": 3,
+    "fields": {
+      "customer_id": 6,
+      "score": 5,
+      "rating_text": "Exceeded my expectations!"
+    }
+  },
+  {
+    "model": "bangazonapi.Rating",
+    "pk": 4,
+    "fields": {
+      "customer_id": 7,
+      "score": 2,
+      "rating_text": "Disappointed with this product"
+    }
+  },
+  {
+    "model": "bangazonapi.Rating",
+    "pk": 5,
+    "fields": {
+      "customer_id": 4,
+      "score": 4,
+      "rating_text": "Good quality, would buy again"
+    }
+  },
+  {
+    "model": "bangazonapi.Rating",
+    "pk": 6,
+    "fields": {
+      "customer_id": 5,
+      "score": 3,
+      "rating_text": "It's alright, nothing special"
+    }
+  },
+  {
+    "model": "bangazonapi.Rating",
+    "pk": 7,
+    "fields": {
+      "customer_id": 6,
+      "score": 5,
+      "rating_text": "Absolutely love it!"
+    }
+  },
+  {
+    "model": "bangazonapi.Rating",
+    "pk": 8,
+    "fields": {
+      "customer_id": 7,
+      "score": 4,
+      "rating_text": "Recommended for sure"
+    }
+  },
+  {
+    "model": "bangazonapi.Rating",
+    "pk": 9,
+    "fields": {
+      "customer_id": 4,
+      "score": 3,
+      "rating_text": "It's okay, but not great"
+    }
+  },
+  {
+    "model": "bangazonapi.Rating",
+    "pk": 10,
+    "fields": {
+      "customer_id": 5,
+      "score": 5,
+      "rating_text": "Absolutely fantastic product!"
+    }
+  }
+]
